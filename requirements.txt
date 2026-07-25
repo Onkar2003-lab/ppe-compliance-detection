@@ -1,0 +1,32 @@
+# Install CUDA-enabled torch/torchvision FIRST, separately, before this file:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# (the default pip torch is CPU-only on Windows). torch/torchvision are intentionally NOT
+# pinned here so this file never pulls the CPU build. Exact versions are frozen in
+# requirements.lock after setup (that lockfile IS committed).
+
+# --- detection framework + scientific stack ---
+ultralytics>=8.3.0        # serves YOLOv8, YOLO11, YOLO26
+numpy>=1.26
+pandas>=2.1
+opencv-python>=4.9        # demo video I/O + EDA image checks
+scipy>=1.11               # permutation / Friedman tests
+scikit-posthocs>=0.9      # Nemenyi post-hoc + critical-difference diagrams
+matplotlib>=3.8
+seaborn>=0.13
+pyyaml>=6.0
+tqdm>=4.66
+kagglehub>=0.3            # download SH17 (mugheesahmad/sh17-dataset-for-ppe-detection)
+
+# --- experiment tracking ---
+tensorboard>=2.16         # local training curves (native Ultralytics logging)
+
+# --- quality + testing ---
+pytest>=8.0
+ruff>=0.5
+black>=24.0
+
+# --- notebook workflow ---
+jupyter>=1.0
+ipykernel>=6.29           # registers the 'ppe' kernel
+jupytext>=1.16            # pair .ipynb <-> .py (percent format)
+nbstripout>=0.7           # strip notebook outputs before commit

@@ -1,0 +1,7 @@
+# Normalise line endings (repo edited on Windows PANDORA + cross-platform tooling)
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.pt binary

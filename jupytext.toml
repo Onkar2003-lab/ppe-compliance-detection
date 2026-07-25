@@ -1,0 +1,4 @@
+# Pair every .ipynb with a percent-format .py script so notebooks get clean git diffs and
+# their cells stay importable/lintable. Run `jupytext --sync <nb>` (or use the Jupyter
+# plugin) to keep the pair in step; nbstripout removes outputs from the .ipynb pre-commit.
+formats = "ipynb,py:percent"

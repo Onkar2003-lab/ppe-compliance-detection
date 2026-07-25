@@ -1,0 +1,32 @@
+# Base training config TEMPLATE — copy per run to ../../configs/<run-id>.yaml and freeze.
+# Fixed values are the reproducibility contract (00-coding-context §8). Do NOT edit a
+# frozen copy: any change = a new run-ID.
+
+run_id: "X02-yolov8n-s0"          # X##-<model>-s<seed>
+model: "yolov8n.pt"               # yolov8n/s.pt | yolo11n/s.pt | yolo26n/s.pt
+seed: 0                            # one of the 3 seeds (e.g. 0, 1, 2)
+
+# --- dataset roots (read by scripts/verify_env.py; heavy data lives outside the repo) ---
+datasets:
+  sh17_root: "D:/Dissertation/SH17_dataset"
+  chv_root: "D:/Dissertation/CHV_dataset"
+
+# --- data ---
+data: "D:/Dissertation/SH17_dataset/sh17.yaml"  # ⚑ confirm exact yaml path at X01; cross-test set evaluated separately
+imgsz: 640
+
+# --- fixed training recipe (comparable to C3/C4; sized for 8 GB) ---
+epochs: 200
+patience: 50                      # early-stop to cap wall-clock
+batch: 16                         # nano=16, small=8 (fits 8 GB with amp)
+amp: true                         # mixed precision — needed on 8 GB
+cache: "disk"                     # 16 GB RAM: avoid RAM caching of SH17
+workers: 6
+pretrained: true                  # COCO-pretrained (matches C4)
+optimizer: "auto"                 # Ultralytics default; log if changed
+device: 0                         # local RTX 4070
+
+# --- bookkeeping ---
+project: "D:/runs"                # outputs -> D:/runs/<run_id>/ (gitignored)
+name: "X02-yolov8n-s0"
+exist_ok: false

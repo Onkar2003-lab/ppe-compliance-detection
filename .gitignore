@@ -1,0 +1,36 @@
+# --- Heavy artefacts: NEVER commit (live outside the vault) ---
+# datasets + run outputs are on D:\datasets\ and D:\runs\ ; also block any local copies:
+datasets/
+runs/
+*.pt
+*.onnx
+*.engine
+*.pth
+*.cache
+
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# --- Env / secrets ---
+.env
+*.key
+# NOTE: requirements.lock IS tracked on purpose (frozen versions = reproducibility contract).
+
+# --- Outputs / plots / logs ---
+*.log
+outputs/
+wandb/
+
+# --- OS / editor ---
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
