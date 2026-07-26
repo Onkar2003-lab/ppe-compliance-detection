@@ -17,7 +17,7 @@ datasets:
   pictor_root: "D:/Dissertation/pictor-ppe_dataset"
 
 # --- data ---
-data: "D:/Dissertation/SH17_dataset/sh17.yaml"  # ⚑ confirm exact yaml path at X01; cross-test set evaluated separately
+data: "configs/data/sh17.yaml"        # harmonised {person,helmet,vest}; cross-test = configs/data/chv.yaml (S1.4)
 imgsz: 640
 
 # --- fixed training recipe (comparable to C3/C4; sized for 8 GB) ---
