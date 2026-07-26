@@ -95,14 +95,36 @@ def hamming(a: int, b: int) -> int:
     return int(a ^ b).bit_count()
 
 
+def matches_within(
+    query: dict[str, int], reference: dict[str, int], threshold: int
+) -> list[tuple[str, str, int]]:
+    """Every ``(query, reference, distance)`` triple within the Hamming radius.
+
+    The dataset-agnostic core of the overlap check, so any dataset entering the pipeline
+    (Pictor-PPE at S1.1b, anything later) is screened by the same tested code.
+
+    All qualifying pairs are returned, not just each image's nearest neighbour: one image
+    can be the twin of several frames from the same shoot, and dropping the non-minimal
+    matches would understate the overlap.
+    """
+    if not query or not reference:
+        return []
+    ref_stems = list(reference)
+    ref = np.fromiter(reference.values(), dtype=np.uint64, count=len(ref_stems))
+    found: list[tuple[str, str, int]] = []
+    for stem, value in query.items():
+        xor = np.bitwise_xor(ref, np.uint64(value))
+        # popcount via byte view — np.bitwise_count needs numpy >= 2.0
+        bits = np.unpackbits(xor.view(np.uint8).reshape(-1, 8), axis=1).sum(axis=1)
+        for index in np.flatnonzero(bits <= threshold):
+            found.append((stem, ref_stems[int(index)], int(bits[index])))
+    return sorted(found, key=lambda m: (m[2], m[0]))
+
+
 def pairs_within(
     chv_hashes: dict[str, int], sh17_hashes: dict[str, int], threshold: int
 ) -> list[Pair]:
     """Every CHV×SH17 pair whose dHash distance is at most ``threshold``.
-
-    All qualifying pairs are returned, not just each image's nearest neighbour: one SH17
-    image can be the twin of several CHV frames from the same shoot, and dropping the
-    non-minimal matches would understate the overlap.
 
     Args:
         chv_hashes: CHV image stem → 64-bit dHash.
@@ -112,18 +134,7 @@ def pairs_within(
     Returns:
         Pairs sorted by distance, then by CHV stem.
     """
-    if not chv_hashes or not sh17_hashes:
-        return []
-    ref_stems = list(sh17_hashes)
-    ref = np.fromiter(sh17_hashes.values(), dtype=np.uint64, count=len(ref_stems))
-    found: list[Pair] = []
-    for stem, value in chv_hashes.items():
-        xor = np.bitwise_xor(ref, np.uint64(value))
-        # popcount via byte view — np.bitwise_count needs numpy >= 2.0
-        bits = np.unpackbits(xor.view(np.uint8).reshape(-1, 8), axis=1).sum(axis=1)
-        for index in np.flatnonzero(bits <= threshold):
-            found.append(Pair(stem, ref_stems[int(index)], int(bits[index])))
-    return sorted(found, key=lambda p: (p.distance, p.chv))
+    return [Pair(*match) for match in matches_within(chv_hashes, sh17_hashes, threshold)]
 
 
 def nearest_distances(chv_hashes: dict[str, int], sh17_hashes: dict[str, int]) -> list[int]:

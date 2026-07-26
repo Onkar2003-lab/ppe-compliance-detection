@@ -10,6 +10,11 @@ seed: 0                            # one of the 3 seeds (e.g. 0, 1, 2)
 datasets:
   sh17_root: "D:/Dissertation/SH17_dataset"
   chv_root: "D:/Dissertation/CHV_dataset"
+  # EVALUATION ONLY — binding supervisor condition (2026-07-26). Pictor-PPE must never be
+  # trained or fine-tuned on, and never redistributed. Enforced in code by
+  # src/guards.py::assert_training_data_excludes_pictor, which every training entry point
+  # calls before a run starts. Listed here only so the audit + eval paths can resolve it.
+  pictor_root: "D:/Dissertation/pictor-ppe_dataset"
 
 # --- data ---
 data: "D:/Dissertation/SH17_dataset/sh17.yaml"  # ⚑ confirm exact yaml path at X01; cross-test set evaluated separately

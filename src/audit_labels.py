@@ -415,13 +415,21 @@ def audit_chv(root: Path) -> list[str]:
 
 
 def load_roots() -> dict[str, Path]:
-    """Read dataset roots from ``configs/base.yaml`` (single source of truth)."""
+    """Read dataset roots from ``configs/base.yaml`` (single source of truth).
+
+    ``pictor`` is included when configured, but it is an **evaluation-only** set: see
+    :func:`src.guards.assert_training_data_excludes_pictor`, which keeps it out of any
+    training run.
+    """
     doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     datasets = doc.get("datasets", {})
-    return {
+    roots = {
         "sh17": Path(datasets["sh17_root"]),
         "chv": Path(datasets["chv_root"]),
     }
+    if datasets.get("pictor_root"):
+        roots["pictor"] = Path(datasets["pictor_root"])
+    return roots
 
 
 def main() -> int:
