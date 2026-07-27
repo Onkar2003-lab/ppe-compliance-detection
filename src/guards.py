@@ -42,6 +42,11 @@ def assert_training_data_excludes_pictor(config: dict, pictor_root: Path | None 
     other string in the config, since a copied config can smuggle the path in through
     ``path``, ``train`` or a custom key.
 
+    One value is exempt: ``datasets.pictor_root`` itself. The root is *declared* on purpose so
+    the audit and evaluation paths can resolve it, and a config is not a training run — what
+    matters is that no training input ever points there. Declaring it stays legal; reaching it
+    from anywhere else does not.
+
     Args:
         config: The resolved run configuration.
         pictor_root: Configured Pictor root, if any. Matching is by normalised substring,
@@ -54,7 +59,11 @@ def assert_training_data_excludes_pictor(config: dict, pictor_root: Path | None 
     if pictor_root is not None:
         markers.append(Path(pictor_root).name.lower())
 
-    for candidate in _paths_in(config):
+    declared = config.get("datasets", {})
+    scanned = {key: value for key, value in config.items() if key != "datasets"}
+    scanned["datasets"] = {k: v for k, v in declared.items() if k != "pictor_root"}
+
+    for candidate in _paths_in(scanned):
         normalised = candidate.replace("\\", "/").lower()
         for marker in markers:
             if marker and marker in normalised:

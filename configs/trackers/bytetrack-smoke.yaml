@@ -1,0 +1,17 @@
+# ByteTrack thresholds for the S2 walking skeleton ONLY — not for results.
+#
+# The smoke model trains for 3 epochs on 200 images, so its detections score below 0.1 and
+# ByteTrack's default gates (track_high_thresh 0.25) confirm no tracks at all. That would leave
+# the tracker leg of the skeleton untested, which is the one thing S2 exists to check. These
+# thresholds are lowered to match the smoke model's confidence range and nothing else.
+#
+# Real runs use Ultralytics' stock `bytetrack.yaml` at its documented defaults (C9 Zhang 2022),
+# so the demo's tracking numbers stay comparable to the published configuration.
+
+tracker_type: bytetrack
+track_high_thresh: 0.02 # first association: normally 0.25
+track_low_thresh: 0.005 # second association (the low-score pass BYTE is named for)
+new_track_thresh: 0.02 # start a new track: normally 0.25
+track_buffer: 30 # frames a lost track survives
+match_thresh: 0.8 # IoU gate for association (stock value)
+fuse_score: true
