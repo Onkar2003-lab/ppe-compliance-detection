@@ -1,0 +1,9 @@
+# Tooling config only — the project is run as scripts/notebooks, not installed as a package.
+# Recorded because "ruff + black clean" (engineering standard) needs a defined width to be
+# reproducible: the committed tree is formatted at 100 columns, not black's default 88.
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
