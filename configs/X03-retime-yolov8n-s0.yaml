@@ -1,0 +1,55 @@
+# FROZEN RUN CONFIG — X03-retime-yolov8n-s0 (S3 re-time trial), frozen 2026-07-28.
+# DO NOT EDIT. Any change to these values = a new run-ID (run-ID contract, 00-coding-context §9).
+#
+# Purpose: the go/no-go measurement for the whole S4 grid. X03-yolov8n-s0 was stopped at epoch
+# 42/200 after profiling showed the pipeline was I/O-bound — ~270 s/epoch with the GPU at 0 %
+# (finding F21). Two things change here, and only these two:
+#
+#   1. `data:` points at the PRE-RESIZED build (src/preresize.py, 640px long side). Ultralytics
+#      letterboxes to imgsz=640 either way, so the array the network sees is unchanged; the
+#      reduction simply happens once offline instead of once per image per epoch.
+#   2. `cache:` is OFF. Disk caching stored the *decoded* 18 MP array (~60 MB/image, ~350 GB
+#      read per epoch) — it was the cause, not the cure. Pre-resized JPEGs decode in ~1.3 ms,
+#      so there is nothing left worth caching.
+#
+# Everything else is the frozen recipe, untouched, so the comparison against the pilot is clean.
+#
+# ⚠️ THIS RUN IS A MEASUREMENT, NOT A RESULT. 3 epochs cannot produce a score worth quoting.
+# The only outputs that matter are seconds/epoch, GPU utilisation and peak VRAM.
+#
+# Decision rule, fixed BEFORE the run so it cannot be rationalised afterwards:
+#   <=90 s/epoch + GPU busy  -> green: lock the 18-run grid, start seed 0
+#   90-150 s/epoch           -> grid still fits (~30 h) but the calendar is re-planned first
+#   >150 s/epoch             -> STOP. The fix is not the whole story; re-profile, do not launch.
+
+run_id: "X03-retime-yolov8n-s0"
+model: "yolov8n.pt"
+seed: 0
+
+datasets:
+  sh17_root: "D:/Dissertation/SH17_dataset"
+  chv_root: "D:/Dissertation/CHV_dataset"
+  # EVALUATION ONLY — binding supervisor condition (2026-07-26); enforced before training by
+  # src/guards.py::assert_training_data_excludes_pictor. Declared so audit/eval can resolve it.
+  pictor_root: "D:/Dissertation/pictor-ppe_dataset"
+
+# --- data (harmonised space {0 person, 1 helmet, 2 vest}; splits frozen at X01/S1.4, unchanged
+#     by the pre-resize — labels are normalised coordinates, asserted in tests/test_preresize.py)
+data: "configs/data/sh17-640.yaml"
+imgsz: 640
+
+# --- fixed training recipe (comparable to C3/C4; sized for 8 GB) ---
+epochs: 3                         # TRIAL ONLY — the grid runs the full 200 + patience 50
+patience: 50
+batch: 16
+amp: true
+cache: false                      # was "disk" — the bottleneck (F21)
+workers: 6
+pretrained: true
+optimizer: "auto"
+device: 0
+
+# --- bookkeeping ---
+project: "D:/runs"
+name: "X03-retime-yolov8n-s0"
+exist_ok: false

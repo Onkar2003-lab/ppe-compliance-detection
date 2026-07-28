@@ -40,6 +40,10 @@ DATA_DIR = Path("configs/data")
 # Which dataset each training set is cross-evaluated against (the transfer study, both ways).
 CROSS_TARGET = {"sh17": "chv", "chv": "sh17"}
 EVAL_SPLIT = "val"
+# Pre-resized variants (X03/F21) are the same datasets at a different on-disk resolution, so
+# they must not read as different datasets: `sh17-640` is still `sh17` for naming, cross-eval
+# pairing and the ledger. Only the file a run loads changes.
+RESOLUTION_SUFFIX = "-640"
 
 
 def load_config(path: Path, overrides: dict[str, Any]) -> dict:
@@ -78,8 +82,24 @@ def environment() -> dict[str, str]:
 
 
 def dataset_of(data_yaml: str | Path) -> str:
-    """Dataset name behind a data YAML (`configs/data/sh17.yaml` -> `sh17`)."""
-    return Path(data_yaml).stem
+    """Dataset name behind a data YAML (`configs/data/sh17-640.yaml` -> `sh17`).
+
+    The resolution variant is stripped: a pre-resized build is the same dataset with the same
+    labels and the same frozen splits, so it must aggregate under the same name.
+    """
+    stem = Path(data_yaml).stem
+    return stem.removesuffix(RESOLUTION_SUFFIX)
+
+
+def cross_yaml_for(data_yaml: str | Path) -> Path:
+    """The transfer target's data YAML, matched to the same resolution variant.
+
+    Cross-evaluating a pre-resized model against full-resolution images would confound the
+    transfer gap with a preprocessing difference, so the variant is carried across.
+    """
+    stem = Path(data_yaml).stem
+    suffix = RESOLUTION_SUFFIX if stem.endswith(RESOLUTION_SUFFIX) else ""
+    return DATA_DIR / f"{CROSS_TARGET[dataset_of(data_yaml)]}{suffix}.yaml"
 
 
 def subset_yaml(data_yaml: Path, limit: int, out_dir: Path) -> Path:
@@ -116,15 +136,31 @@ def metrics_of(results: Any) -> dict[str, float]:
     }
 
 
-def train(config: dict, data_yaml: Path, run_dir: Path) -> tuple[Path, Path]:
+def train(config: dict, data_yaml: Path, run_dir: Path, resume: bool = False) -> tuple[Path, Path]:
     """Train one model under the frozen recipe.
 
     Returns ``(save_dir, weights)`` read back from the trainer rather than assumed: if the
     run-ID directory already exists, Ultralytics writes to an incremented one, and silently
     reporting results from the wrong folder is exactly the kind of error a run-ID contract is
     supposed to prevent.
+
+    With ``resume``, training continues from the run's own ``last.pt``. Every hyperparameter
+    is then restored from that checkpoint rather than re-passed — Ultralytics owns the resume
+    contract, and re-supplying arguments is how a resumed run silently becomes a different
+    run. Nothing is overridden here, so an interrupted overnight run resumes as itself.
     """
     from ultralytics import YOLO
+
+    last = run_dir / "weights" / "last.pt"
+    if resume:
+        if not last.exists():
+            logger.error("--resume given but no checkpoint at %s", last)
+            raise FileNotFoundError(last)
+        logger.info("resuming %s from %s", run_dir.name, last)
+        model = YOLO(str(last))
+        model.train(resume=True)
+        save_dir = Path(model.trainer.save_dir)
+        return save_dir, save_dir / "weights" / "best.pt"
 
     model = YOLO(config["model"])
     model.train(
@@ -190,6 +226,11 @@ def main() -> int:
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--subset", type=int, default=None, help="smoke slice: N train images")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue this run-ID from its last checkpoint (overnight runs surviving a stop)",
+    )
     args = parser.parse_args()
 
     config = load_config(
@@ -211,7 +252,7 @@ def main() -> int:
     run_dir = Path(config["project"]) / run_id
     data_yaml = Path(config["data"])
     trained_on = dataset_of(data_yaml)
-    cross_yaml = DATA_DIR / f"{CROSS_TARGET[trained_on]}.yaml"
+    cross_yaml = cross_yaml_for(data_yaml)
 
     env = environment()
     logger.info("run %s | train on %s | cross-eval on %s", run_id, trained_on, cross_yaml.stem)
@@ -226,7 +267,7 @@ def main() -> int:
     )
 
     started = time.time()
-    run_dir, weights = train(config, train_yaml, run_dir)
+    run_dir, weights = train(config, train_yaml, run_dir, resume=args.resume)
     train_seconds = time.time() - started
     logger.info("training wall-clock: %.1f s", train_seconds)
 

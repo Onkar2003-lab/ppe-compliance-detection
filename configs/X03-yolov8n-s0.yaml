@@ -1,0 +1,38 @@
+# FROZEN RUN CONFIG — X03-yolov8n-s0 (S3 timing pilot), frozen 2026-07-28 at commit dcc6437.
+# DO NOT EDIT. Any change to these values = a new run-ID (run-ID contract, 00-coding-context §9).
+#
+# Purpose: one FULL-LENGTH run under the real recipe, to measure per-epoch wall-clock and peak
+# VRAM. Those two numbers size the whole S4 grid (3 families x {n,s} x 3 seeds x 2 directions)
+# against the ~20 GPU-h budget. This run's scores are a single seed and are NOT a result — they
+# graduate to Key-Facts only seed-aggregated with a CI and a named test.
+
+run_id: "X03-yolov8n-s0"
+model: "yolov8n.pt"
+seed: 0
+
+datasets:
+  sh17_root: "D:/Dissertation/SH17_dataset"
+  chv_root: "D:/Dissertation/CHV_dataset"
+  # EVALUATION ONLY — binding supervisor condition (2026-07-26); enforced before training by
+  # src/guards.py::assert_training_data_excludes_pictor. Declared so audit/eval can resolve it.
+  pictor_root: "D:/Dissertation/pictor-ppe_dataset"
+
+# --- data (harmonised space {0 person, 1 helmet, 2 vest}; splits frozen at X01/S1.4) ---
+data: "configs/data/sh17.yaml"
+imgsz: 640
+
+# --- fixed training recipe (comparable to C3/C4; sized for 8 GB) ---
+epochs: 200
+patience: 50
+batch: 16
+amp: true
+cache: "disk"
+workers: 6
+pretrained: true
+optimizer: "auto"
+device: 0
+
+# --- bookkeeping ---
+project: "D:/runs"
+name: "X03-yolov8n-s0"
+exist_ok: false
