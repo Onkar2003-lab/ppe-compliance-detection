@@ -267,12 +267,241 @@ def status(runs: list[Run]) -> None:
     )
 
 
+# ------------------------------------------------------------------------------- preflight
+
+
+@dataclass
+class Check:
+    """One pre-flight gate. ``blocking`` gates stop the queue; the rest only warn."""
+
+    name: str
+    passed: bool
+    detail: str
+    blocking: bool = True
+
+
+def check_gpu() -> list[Check]:
+    """The GPU must be present, free, and big enough — checked before, not at 2 am."""
+    import torch
+
+    checks: list[Check] = []
+    available = torch.cuda.is_available()
+    checks.append(
+        Check(
+            "GPU available",
+            available,
+            torch.cuda.get_device_name(0) if available else "CUDA NOT AVAILABLE",
+        )
+    )
+    if not available:
+        return checks
+
+    free, total = torch.cuda.mem_get_info(0)
+    free_gb, total_gb = free / 1024**3, total / 1024**3
+    # The re-time run peaked at 2.6 GB; 4 GB free leaves comfortable headroom at batch 16.
+    checks.append(
+        Check(
+            "GPU memory free",
+            free_gb >= 4.0,
+            f"{free_gb:.1f} GB free of {total_gb:.1f} GB (need >=4 GB at batch {BATCH})",
+        )
+    )
+    return checks
+
+
+def check_disk() -> Check:
+    """Each run writes ~35 MB; 18 runs plus overhead needs very little, but zero is fatal."""
+    import shutil as disk
+
+    free_gb = disk.disk_usage(RUNS_ROOT.anchor).free / 1024**3
+    return Check("Disk space", free_gb >= 10.0, f"{free_gb:.0f} GB free on {RUNS_ROOT.anchor}")
+
+
+def check_sleep_disabled() -> Check:
+    """The classic overnight killer: the machine sleeps and the queue dies mid-run.
+
+    Non-blocking, because a 3-hour attended session does not need it — but it is reported
+    every time so an unattended block is never started on a machine that will sleep.
+    """
+    try:
+        output = subprocess.check_output(
+            ["powercfg", "/query", "SCHEME_CURRENT", "SUB_SLEEP", "STANDBYIDLE"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return Check("Sleep on AC disabled", False, "could not read powercfg", blocking=False)
+
+    for line in output.splitlines():
+        if "Current AC Power Setting Index" in line:
+            value = int(line.split(":")[-1].strip(), 16)
+            return Check(
+                "Sleep on AC disabled",
+                value == 0,
+                "never sleeps on AC" if value == 0 else f"sleeps after {value // 60} min on AC",
+                blocking=False,
+            )
+    return Check("Sleep on AC disabled", False, "setting not found", blocking=False)
+
+
+def check_configs(runs: list[Run]) -> list[Check]:
+    """Every queued run must have a frozen config, and the protocol must not drift."""
+    missing = [run.run_id for run in runs if not run.config_path.exists()]
+    checks = [
+        Check(
+            "Configs frozen",
+            not missing,
+            f"{len(runs) - len(missing)}/{len(runs)} present"
+            + (f" — MISSING {missing[:3]}" if missing else ""),
+        )
+    ]
+
+    loaded = [
+        yaml.safe_load(run.config_path.read_text(encoding="utf-8"))
+        for run in runs
+        if run.config_path.exists()
+    ]
+    if loaded:
+        epochs = {config["epochs"] for config in loaded}
+        patience = {config["patience"] for config in loaded}
+        caches = {config["cache"] for config in loaded}
+        checks.append(
+            Check(
+                "Stopping protocol identical",
+                len(epochs) == 1 and len(patience) == 1,
+                f"epochs={epochs}, patience={patience} (differing values would corrupt the "
+                f"seed variance)",
+            )
+        )
+        checks.append(
+            Check(
+                "Disk cache off",
+                caches == {False},
+                f"cache={caches} (F21: 'disk' was the bottleneck)",
+            )
+        )
+    return checks
+
+
+def check_no_stale_run_dirs(runs: list[Run]) -> Check:
+    """A leftover directory makes Ultralytics increment the folder and orphan the run-ID.
+
+    This is the defect that cost a restart on 2026-07-28, so it is now a hard gate rather
+    than something to notice afterwards.
+    """
+    stale = [run.run_id for run in runs if run.state == "pending" and run.run_dir.exists()]
+    return Check(
+        "No stale run directories",
+        not stale,
+        "clean" if not stale else f"{len(stale)} would be incremented: {stale[:3]}",
+    )
+
+
+def check_data(runs: list[Run]) -> list[Check]:
+    """Every image the queue will ask for must exist *now* — not fail 40 minutes in."""
+    checks: list[Check] = []
+    for direction in sorted({run.direction for run in runs}):
+        yaml_path = DATA_DIR / f"{direction}-640.yaml"
+        if not yaml_path.exists():
+            checks.append(Check(f"Data {direction}", False, f"missing {yaml_path}"))
+            continue
+
+        document = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        root = Path(document["path"])
+        if not root.exists():
+            checks.append(Check(f"Data {direction}", False, f"root missing: {root}"))
+            continue
+
+        counts, missing_images, missing_labels = {}, 0, 0
+        for split in ("train", "val", "test"):
+            listing = root / document[split]
+            if not listing.exists():
+                checks.append(Check(f"Data {direction}/{split}", False, f"missing {listing}"))
+                continue
+            lines = [
+                line for line in listing.read_text(encoding="utf-8").splitlines() if line.strip()
+            ]
+            counts[split] = len(lines)
+            for line in lines:
+                image = Path(line)
+                if not image.exists():
+                    missing_images += 1
+                if not (root / "labels" / f"{image.stem}.txt").exists():
+                    missing_labels += 1
+
+        checks.append(
+            Check(
+                f"Data {direction} images present",
+                missing_images == 0 and missing_labels == 0,
+                f"{counts} — {missing_images} missing images, {missing_labels} missing labels",
+            )
+        )
+    return checks
+
+
+def check_pictor_excluded(runs: list[Run]) -> Check:
+    """The binding supervisor condition, re-asserted across the whole queue at once."""
+    from src.guards import assert_training_data_excludes_pictor
+
+    for run in runs:
+        if not run.config_path.exists():
+            continue
+        config = yaml.safe_load(run.config_path.read_text(encoding="utf-8"))
+        try:
+            assert_training_data_excludes_pictor(config, config["datasets"].get("pictor_root"))
+        except Exception as error:  # noqa: BLE001 — any failure here must block the queue
+            return Check("Pictor excluded from training", False, f"{run.run_id}: {error}")
+    return Check(
+        "Pictor excluded from training", True, f"all {len(runs)} configs clean (eval-only)"
+    )
+
+
+def check_weights(runs: list[Run]) -> Check:
+    """Weights must be on disk already — a mid-queue download can fail and waste the slot."""
+    needed = sorted({MODELS[run.model_key] for run in runs})
+    absent = [name for name in needed if not Path(name).exists()]
+    return Check(
+        "Pretrained weights local",
+        not absent,
+        f"{needed} present" if not absent else f"NOT downloaded: {absent}",
+    )
+
+
+def preflight(runs: list[Run]) -> bool:
+    """Run every gate. Returns True only if nothing blocking failed."""
+    checks: list[Check] = []
+    checks.extend(check_gpu())
+    checks.append(check_disk())
+    checks.append(check_sleep_disabled())
+    checks.extend(check_configs(runs))
+    checks.append(check_no_stale_run_dirs(runs))
+    checks.extend(check_data(runs))
+    checks.append(check_pictor_excluded(runs))
+    checks.append(check_weights(runs))
+
+    print(f"\nPRE-FLIGHT — {len(runs)} run(s) queued\n" + "-" * 72)
+    for check in checks:
+        mark = "PASS" if check.passed else ("FAIL" if check.blocking else "WARN")
+        print(f"  [{mark}] {check.name:<34} {check.detail}")
+    print("-" * 72)
+
+    blocking = [check for check in checks if not check.passed and check.blocking]
+    warnings = [check for check in checks if not check.passed and not check.blocking]
+    if warnings:
+        print(f"  {len(warnings)} warning(s) — not fatal, but read them before an unattended run.")
+    if blocking:
+        print(f"  {len(blocking)} BLOCKING failure(s) — the queue will not start.\n")
+        return False
+    print("  All blocking checks passed. Safe to start.\n")
+    return True
+
+
 # ---------------------------------------------------------------------------------- main
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lock and execute the S4 training grid.")
-    parser.add_argument("action", choices=("lock", "run", "status"))
+    parser.add_argument("action", choices=("lock", "run", "status", "preflight"))
     parser.add_argument("--seeds", type=int, nargs="+", default=None, help="limit to these seeds")
     parser.add_argument("--models", nargs="+", default=None, help="limit to these model keys")
     parser.add_argument("--force", action="store_true", help="lock: overwrite frozen configs")
@@ -285,19 +514,18 @@ def main() -> int:
     if arguments.models:
         runs = [run for run in runs if run.model_key in arguments.models]
 
-    if arguments.action == "status":
+    if arguments.action in ("status", "lock"):
         status(runs)
         return 0
 
-    if arguments.action == "lock":
-        status(runs)
-        return 0
+    if arguments.action == "preflight":
+        return 0 if preflight(runs) else 1
 
-    missing = [run.run_id for run in runs if not run.config_path.exists()]
-    if missing:
-        logger.error(
-            "no frozen config for %d run(s) — run `lock` first: %s", len(missing), missing[:3]
-        )
+    # The queue always pre-flights itself. GPU time is the scarce resource, so a run is never
+    # started on a system that has already failed a check — the whole point is to burn a second
+    # here rather than discover the problem 40 minutes into an epoch.
+    if not arguments.dry_run and not preflight(runs):
+        logger.error("pre-flight FAILED — nothing started; fix the FAIL lines above")
         return 1
 
     outcomes: dict[str, int] = {}
