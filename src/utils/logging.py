@@ -9,9 +9,32 @@ the same configured logger without stacking duplicate handlers.
 from __future__ import annotations
 
 import logging
+import sys
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _force_utf8_console() -> None:
+    """Make stdout/stderr UTF-8 so non-ASCII output cannot kill a run.
+
+    The Windows console defaults to cp1252, which cannot encode the characters this project
+    legitimately uses in reports and log lines (``±`` in "mean ± 95 % CI", em dashes, ``⚠``).
+    Without this, a *completed* pass dies on its final ``print`` with ``UnicodeEncodeError``
+    and returns a non-zero exit code — which is how `src/eda.py` came to exit 1 after writing
+    every one of its artefacts successfully. Failing on the report, after the work is done, is
+    the worst place to fail: it makes success look like failure to any calling script.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):  # already detached or not a real stream
+                pass
+
+
+_force_utf8_console()
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:

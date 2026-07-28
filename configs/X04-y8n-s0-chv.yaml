@@ -1,0 +1,37 @@
+# FROZEN RUN CONFIG — X04-y8n-s0-chv (S4 training grid), frozen 2026-07-28.
+# DO NOT EDIT. Any change to these values = a new run-ID (run-ID contract).
+#
+# Grid: 3 nano families x 3 seeds x 2 directions = 18 runs, seed-major order.
+# Trains on chv; cross-evaluates on the other dataset automatically
+# (src/run.py), so the transfer gap is produced by every run rather than a later pass.
+#
+# Stopping protocol is IDENTICAL across all 18 runs: 200 epochs, patience
+# 50. No fixed epoch cap — capping some runs and not others would make the
+# seeds incomparable and turn a protocol difference into apparent variance. The epoch
+# each run stops at is the convergence evidence.
+#
+# Data is the pre-resized build (X03/F22): 640px long side, labels and frozen splits
+# identical to the harmonised build. Ultralytics letterboxes to 640 regardless, so the
+# training input is unchanged and comparability with C3/C4 holds.
+# cache=false — disk caching of decoded 18 MP arrays was the original bottleneck (F21).
+run_id: X04-y8n-s0-chv
+model: yolov8n.pt
+seed: 0
+datasets:
+  sh17_root: D:/Dissertation/SH17_dataset
+  chv_root: D:/Dissertation/CHV_dataset
+  pictor_root: D:/Dissertation/pictor-ppe_dataset
+data: configs/data/chv-640.yaml
+imgsz: 640
+epochs: 200
+patience: 50
+batch: 16
+amp: true
+cache: false
+workers: 6
+pretrained: true
+optimizer: auto
+device: 0
+project: D:/runs
+name: X04-y8n-s0-chv
+exist_ok: false
