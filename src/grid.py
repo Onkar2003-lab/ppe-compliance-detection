@@ -37,6 +37,8 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import csv
+import datetime as dt
 import json
 import subprocess
 import sys
@@ -251,12 +253,136 @@ def report_row(run: Run) -> str:
     )
 
 
+def read_progress(run: Run) -> dict | None:
+    """Live epoch-level progress for an in-flight run, read from Ultralytics' results.csv.
+
+    Returns ``None`` when the run has not written an epoch yet. Every number here is derived
+    from the file the trainer itself writes, so it cannot disagree with the run.
+    """
+    results = run.run_dir / "results.csv"
+    if not results.exists():
+        return None
+    try:
+        with results.open(newline="", encoding="utf-8") as handle:
+            rows = [row for row in csv.DictReader(handle) if row.get("epoch")]
+    except OSError:  # mid-write; caller simply reports "no epoch yet"
+        return None
+    if not rows:
+        return None
+
+    def value(row: dict, key: str) -> float:
+        try:
+            return float(row[key])
+        except (KeyError, TypeError, ValueError):
+            return float("nan")
+
+    metric = "metrics/mAP50(B)"
+    scores = [value(row, metric) for row in rows]
+    best_index = max(range(len(scores)), key=lambda i: scores[i])
+
+    # Ultralytics' `time` column is cumulative seconds AND restarts after a resume, so per-epoch
+    # cost is a delta with the reset treated as a fresh baseline (see the X04 recording caveat).
+    times = [value(row, "time") for row in rows]
+    deltas, previous = [], 0.0
+    for stamp in times:
+        deltas.append(stamp - previous if stamp >= previous else stamp)
+        previous = stamp
+    recent = [d for d in deltas[-10:] if d == d and d > 0]
+    seconds_per_epoch = sorted(recent)[len(recent) // 2] if recent else float("nan")
+
+    epoch = int(value(rows[-1], "epoch"))
+    since_best = epoch - int(value(rows[best_index], "epoch"))
+    remaining = min(EPOCHS - epoch, PATIENCE - since_best)
+    age = dt.datetime.now() - dt.datetime.fromtimestamp(results.stat().st_mtime)
+    return {
+        "epoch": epoch,
+        "seconds_per_epoch": seconds_per_epoch,
+        "current": scores[-1],
+        "best": scores[best_index],
+        "best_epoch": int(value(rows[best_index], "epoch")),
+        "since_best": since_best,
+        "eta_min": remaining * seconds_per_epoch / 60 if remaining > 0 else 0.0,
+        "age_seconds": age.total_seconds(),
+    }
+
+
+def print_progress(runs: list[Run]) -> None:
+    """The YOU-ARE-HERE block: what is training right now, and is it actually moving."""
+    active = [run for run in runs if run.state == "resumable"]
+    if not active:
+        print("\nNo run in flight (nothing has a checkpoint without a summary).")
+        return
+    for run in active:
+        detail = read_progress(run)
+        print(f"\n▶ IN FLIGHT — {run.run_id}  (run {runs.index(run) + 1} of {len(runs)})")
+        if detail is None:
+            print("   starting up — no epoch written yet")
+            continue
+        done = int(30 * detail["epoch"] / EPOCHS)
+        print(f"   [{'#' * done}{'.' * (30 - done)}] epoch {detail['epoch']}/{EPOCHS}")
+        print(
+            f"   mAP50 now {detail['current']:.4f} | best {detail['best']:.4f} "
+            f"@ epoch {detail['best_epoch']}"
+        )
+        print(
+            f"   early stop  {detail['since_best']}/{PATIENCE} epochs since best "
+            f"— {PATIENCE - detail['since_best']} left if it never improves again"
+        )
+        print(
+            f"   pace        {detail['seconds_per_epoch']:.1f} s/epoch "
+            f"| ETA {detail['eta_min'] / 60:.1f} h at this pace"
+        )
+        # Staleness is the honest liveness signal: a paused or dead run stops writing epochs.
+        age, budget = detail["age_seconds"], max(detail["seconds_per_epoch"] * 3, 300)
+        mark = "OK" if age < budget else "!! STALLED?"
+        print(f"   last epoch  {age / 60:.1f} min ago  [{mark}]")
+        if age >= budget:
+            print(f"      no epoch for >{budget / 60:.0f} min — check the process and the log")
+
+
+def gpu_line() -> str:
+    """One line of live GPU state, or why it could not be read.
+
+    The efficiency of this pipeline is a *measured* property (F21/F22), so utilisation belongs
+    next to epoch progress: a run that is progressing slowly at 0 % GPU is I/O-bound, and a run
+    that is progressing slowly at 80 % is simply working.
+    """
+    try:
+        probe = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"GPU  unavailable ({type(error).__name__})"
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return "GPU  unavailable (nvidia-smi returned nothing)"
+    used, total_mb, temperature = "?", "?", "?"
+    utilisation = "?"
+    parts = [field.strip() for field in probe.stdout.strip().splitlines()[0].split(",")]
+    if len(parts) == 4:
+        utilisation, used, total_mb, temperature = parts
+    verdict = ""
+    if utilisation.isdigit():
+        # F21: 0 % for a sustained period is the I/O-bound signature, not idleness.
+        verdict = " <- I/O-BOUND?" if int(utilisation) < 10 else ""
+    return f"GPU  {utilisation} % | {used}/{total_mb} MiB | {temperature} C{verdict}"
+
+
 def status(runs: list[Run]) -> None:
     """Print what is done, running and left — the queue's own YOU-ARE-HERE."""
     by_state: dict[str, int] = {}
     for run in runs:
         by_state[run.state] = by_state.get(run.state, 0) + 1
     logger.info("grid: %d runs — %s", len(runs), dict(sorted(by_state.items())))
+    print_progress(runs)
+    print("   " + gpu_line())
     print("\n| run-id | in-domain mAP50 | cross mAP50 | transfer delta | stopped |")
     print("|---|---|---|---|---|")
     for run in runs:
@@ -265,6 +391,30 @@ def status(runs: list[Run]) -> None:
         "\n⚠️ Per-seed numbers — NOT results. They graduate only seed-aggregated "
         "(mean ± 95 % BCa CI + named test)."
     )
+
+
+def watch(runs: list[Run], every: int = 15) -> int:
+    """Refreshing dashboard: queue position, epoch progress and GPU in one window.
+
+    Read-only — it only reads results.csv and nvidia-smi, so it cannot disturb a live run.
+    """
+    try:
+        while True:
+            done = sum(1 for run in runs if run.state == "done")
+            print("\033[2J\033[H", end="")  # clear + home, so the panel refreshes in place
+            print(
+                f"X04 GRID — {done}/{len(runs)} runs complete"
+                f"    {dt.datetime.now():%H:%M:%S}    (Ctrl+C to close)"
+            )
+            print("=" * 72)
+            print_progress(runs)
+            print("\n   " + gpu_line())
+            print("\n" + "=" * 72)
+            print("Per-seed numbers are NOT results — they graduate seed-aggregated only.")
+            time.sleep(every)
+    except KeyboardInterrupt:
+        print("\nwatch stopped — the training run is unaffected.")
+        return 0
 
 
 # ------------------------------------------------------------------------------- preflight
@@ -501,7 +651,7 @@ def preflight(runs: list[Run]) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lock and execute the S4 training grid.")
-    parser.add_argument("action", choices=("lock", "run", "status", "preflight"))
+    parser.add_argument("action", choices=("lock", "run", "status", "watch", "preflight"))
     parser.add_argument("--seeds", type=int, nargs="+", default=None, help="limit to these seeds")
     parser.add_argument("--models", nargs="+", default=None, help="limit to these model keys")
     parser.add_argument("--force", action="store_true", help="lock: overwrite frozen configs")
@@ -517,6 +667,9 @@ def main() -> int:
     if arguments.action in ("status", "lock"):
         status(runs)
         return 0
+
+    if arguments.action == "watch":
+        return watch(runs)
 
     if arguments.action == "preflight":
         return 0 if preflight(runs) else 1
