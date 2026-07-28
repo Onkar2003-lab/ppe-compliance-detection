@@ -54,6 +54,8 @@ EXPERIMENT = "X04"
 CONFIG_DIR = Path("configs")
 DATA_DIR = Path("configs/data")
 RUNS_ROOT = Path("D:/runs")
+# Deliberately OUTSIDE any run directory — see the note in execute().
+QUEUE_LOG_DIR = RUNS_ROOT / "_queue-logs"
 
 # Nano tier only (2026-07-28). Keys are the ledger's short model tags.
 MODELS = {"y8n": "yolov8n.pt", "y11n": "yolo11n.pt", "y26n": "yolo26n.pt"}
@@ -203,8 +205,13 @@ def execute(run: Run, dry_run: bool = False) -> tuple[str, float]:
         logger.info("%s: would run %s", run.run_id, " ".join(command))
         return "dry-run", 0.0
 
-    run.run_dir.mkdir(parents=True, exist_ok=True)
-    log_path = run.run_dir / "console.log"
+    # The console log MUST NOT live inside the run directory. Creating that directory ahead of
+    # the trainer makes Ultralytics treat the run-ID as already used and write to an incremented
+    # folder (`...-sh17-2`) instead — which breaks the run-ID contract and leaves this queue
+    # unable to see its own finished runs, so it would repeat them forever. S2 caught this once
+    # already (X02/F19); it is kept out of the run directory here so it cannot recur.
+    QUEUE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = QUEUE_LOG_DIR / f"{run.run_id}.log"
     logger.info("%s: starting (log -> %s)", run.run_id, log_path)
 
     started = time.time()

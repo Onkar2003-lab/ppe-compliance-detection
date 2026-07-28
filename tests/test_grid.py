@@ -133,6 +133,19 @@ def test_run_with_a_summary_is_done_and_gets_skipped(run_dir: Path):
     assert run.state == "done"
 
 
+def test_queue_log_never_lives_inside_a_run_directory(run_dir: Path):
+    """Regression: pre-creating the run dir makes Ultralytics increment the folder name.
+
+    That breaks the run-ID contract AND hides the finished run from this queue, which would
+    then repeat it forever. The console log therefore lives in a sibling directory.
+    """
+    import src.grid as module
+
+    run = Run("y8n", 0, "sh17")
+    assert module.QUEUE_LOG_DIR != run.run_dir
+    assert run.run_dir not in module.QUEUE_LOG_DIR.parents
+
+
 def test_summary_takes_precedence_over_a_leftover_checkpoint(run_dir: Path):
     run = Run("y8n", 0, "sh17")
     (run.run_dir / "weights").mkdir(parents=True)
