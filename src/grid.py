@@ -40,15 +40,39 @@ import argparse
 import csv
 import datetime as dt
 import json
+import math
 import subprocess
 import sys
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from src.utils.logging import get_logger
+
+try:
+    # Local-only (see .gitignore): holds PANDORA out of Modern Standby for the life of the queue
+    # after F25 lost a run to it. It guards *this* machine's power behaviour rather than the
+    # method, so it is deliberately not released with the code — the grid runs without it.
+    from src import keepawake
+except ImportError:  # pragma: no cover - exercised only in a checkout without the local module
+
+    class _NoKeepAwake:
+        """Stand-in when the module is absent: the queue runs, it just makes no power assertion."""
+
+        @staticmethod
+        def available() -> tuple[bool, str]:
+            return True, "keep-awake module not installed — machine power settings apply"
+
+        @staticmethod
+        @contextmanager
+        def keep_awake(label: str = "queue") -> Generator[bool]:
+            yield False
+
+    keepawake = _NoKeepAwake()  # type: ignore[assignment]
 
 logger = get_logger(__name__)
 
@@ -287,13 +311,13 @@ def read_progress(run: Run) -> dict | None:
     for stamp in times:
         deltas.append(stamp - previous if stamp >= previous else stamp)
         previous = stamp
-    recent = [d for d in deltas[-10:] if d == d and d > 0]
+    recent = [d for d in deltas[-10:] if not math.isnan(d) and d > 0]
     seconds_per_epoch = sorted(recent)[len(recent) // 2] if recent else float("nan")
 
     epoch = int(value(rows[-1], "epoch"))
     since_best = epoch - int(value(rows[best_index], "epoch"))
     remaining = min(EPOCHS - epoch, PATIENCE - since_best)
-    age = dt.datetime.now() - dt.datetime.fromtimestamp(results.stat().st_mtime)
+    age = dt.datetime.now(dt.UTC) - dt.datetime.fromtimestamp(results.stat().st_mtime, dt.UTC)
     return {
         "epoch": epoch,
         "seconds_per_epoch": seconds_per_epoch,
@@ -404,7 +428,7 @@ def watch(runs: list[Run], every: int = 15) -> int:
             print("\033[2J\033[H", end="")  # clear + home, so the panel refreshes in place
             print(
                 f"X04 GRID — {done}/{len(runs)} runs complete"
-                f"    {dt.datetime.now():%H:%M:%S}    (Ctrl+C to close)"
+                f"    {dt.datetime.now().astimezone():%H:%M:%S}    (Ctrl+C to close)"
             )
             print("=" * 72)
             print_progress(runs)
@@ -467,31 +491,21 @@ def check_disk() -> Check:
     return Check("Disk space", free_gb >= 10.0, f"{free_gb:.0f} GB free on {RUNS_ROOT.anchor}")
 
 
-def check_sleep_disabled() -> Check:
+def check_keep_awake() -> Check:
     """The classic overnight killer: the machine sleeps and the queue dies mid-run.
 
-    Non-blocking, because a 3-hour attended session does not need it — but it is reported
-    every time so an unattended block is never started on a machine that will sleep.
-    """
-    try:
-        output = subprocess.check_output(
-            ["powercfg", "/query", "SCHEME_CURRENT", "SUB_SLEEP", "STANDBYIDLE"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-        return Check("Sleep on AC disabled", False, "could not read powercfg", blocking=False)
+    **Rewritten 2026-07-29 after it failed in production.** The old version read the powercfg
+    STANDBYIDLE timer and passed when it was 0. On 29 Jul it passed, and the machine entered
+    Modern Standby anyway ~41 min into `X04-y11n-s0-sh17`, costing 46 minutes: PANDORA is an
+    `S0 Low Power Idle` platform, where that timer is not the whole story. A guard that reads
+    the wrong signal is worse than no guard, because it is believed.
 
-    for line in output.splitlines():
-        if "Current AC Power Setting Index" in line:
-            value = int(line.split(":")[-1].strip(), 16)
-            return Check(
-                "Sleep on AC disabled",
-                value == 0,
-                "never sleeps on AC" if value == 0 else f"sleeps after {value // 60} min on AC",
-                blocking=False,
-            )
-    return Check("Sleep on AC disabled", False, "setting not found", blocking=False)
+    So this now verifies the *mechanism the queue actually relies on* — it takes the
+    `SetThreadExecutionState` assertion and puts it back. Passing means the queue can hold the
+    box awake, not that a setting looked right.
+    """
+    ok, detail = keepawake.available()
+    return Check("Keep-awake assertion", ok, detail, blocking=False)
 
 
 def check_configs(runs: list[Run]) -> list[Check]:
@@ -622,7 +636,7 @@ def preflight(runs: list[Run]) -> bool:
     checks: list[Check] = []
     checks.extend(check_gpu())
     checks.append(check_disk())
-    checks.append(check_sleep_disabled())
+    checks.append(check_keep_awake())
     checks.extend(check_configs(runs))
     checks.append(check_no_stale_run_dirs(runs))
     checks.extend(check_data(runs))
@@ -683,11 +697,14 @@ def main() -> int:
 
     outcomes: dict[str, int] = {}
     total = 0.0
-    for index, run in enumerate(runs, 1):
-        logger.info("[%d/%d] %s", index, len(runs), run.run_id)
-        outcome, elapsed = execute(run, dry_run=arguments.dry_run)
-        outcomes[outcome] = outcomes.get(outcome, 0) + 1
-        total += elapsed
+    # Held for the queue only, and released below — the laptop keeps its normal sleep behaviour
+    # the rest of the time. See keepawake.py for why the power-scheme timer was not enough.
+    with keepawake.keep_awake("training queue"):
+        for index, run in enumerate(runs, 1):
+            logger.info("[%d/%d] %s", index, len(runs), run.run_id)
+            outcome, elapsed = execute(run, dry_run=arguments.dry_run)
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
+            total += elapsed
 
     logger.info("queue finished in %.1f h — %s", total / 3600, dict(sorted(outcomes.items())))
     status(runs)

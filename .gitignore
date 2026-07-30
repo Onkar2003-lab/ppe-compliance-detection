@@ -34,3 +34,10 @@ Thumbs.db
 .DS_Store
 .vscode/
 .idea/
+
+# --- Local machine plumbing, deliberately NOT released (decision 2026-07-29) ---
+# keepawake.py holds PANDORA out of Modern Standby for the life of a training queue after
+# F25 lost a run to it. It guards this laptop's power behaviour, not the method, so it is not
+# part of the released code. `src/grid.py` imports it inside a try/except and runs without it.
+src/keepawake.py
+tests/test_keepawake.py
