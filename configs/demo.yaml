@@ -1,0 +1,44 @@
+# O6 demonstration — the zone compliance monitor (S6.4).
+# Every path and threshold the demo uses lives here: `python -m src.monitor --config
+# configs/demo.yaml` must run with no other argument, so the demo is reproducible and portable
+# rather than depending on one machine's layout.
+
+# Detector. YOLOv8n, SH17-trained, seed 0 (S6.0 decision, 2026-08-10): F30 found no difference
+# between the architectures on four of five metrics, so the choice is a deployment one about
+# speed (F29 — y8n is fastest on GPU and CPU), and SH17-trained models recall markedly more
+# helmet violations on Pictor than CHV-trained ones.
+weights: "D:/runs/X04-y8n-s0-sh17/weights/best.pt"
+
+# Generic video source: a recorded file (reproducible, the default), a webcam index such as
+# `0`, an `rtsp://` or `http://` stream, or a directory of stills.
+source: "D:/Dissertation/demo/clip.mp4"
+
+# The safety zone, drawn with `python -m src.zone --source <same source> --name loading-bay`.
+# Null watches the whole frame, which is a weaker demonstration but a valid one.
+zone: "configs/zones/loading-bay.yaml"
+
+# What the zone requires. Must be classes the models were trained on (S6.0: helmet + vest).
+required_ppe: ["helmet", "vest"]
+
+# Detector confidence. 0.25 is the operating point the violation axis was scored at (S5), so
+# the demo behaves the way the results chapter reports.
+conf: 0.25
+
+# Association rule threshold — the calibrated containment τ (X01/S1.4c). Changing it makes the
+# demo disagree with the violation numbers, so it is here to be seen, not to be tuned.
+association_threshold: 0.80
+
+tracker: "bytetrack.yaml"   # C9 (Zhang 2022)
+
+# Seconds of continuous non-compliance inside the zone before one alert fires. 0 = instant,
+# which suits a hard exclusion zone; a few seconds suppresses people passing the edge.
+dwell_seconds: 0.0
+# How long a worker may go undetected before the incident is treated as over. F27 measured
+# that losing the person is this pipeline's normal failure, so short gaps are bridged.
+grace_seconds: 2.0
+
+out: "D:/runs/X06-demo"     # violations.csv, demo-metrics.json, snapshots/ (all gitignored)
+display: true               # live window; false for a headless timing run
+save_snapshots: true
+fps: null                   # override the file's declared frame rate; null = use the source's
+limit_frames: null          # stop after N frames (for timing runs)
