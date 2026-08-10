@@ -87,6 +87,10 @@ class DemoConfig:
     dwell_seconds: float = DEFAULT_DWELL_SECONDS
     grace_seconds: float = DEFAULT_GRACE_SECONDS
     out: Path = Path("D:/runs/X06-demo")
+    # None lets Ultralytics choose (the GPU when there is one). "cpu" forces the
+    # CPU-constrained case, which is the deployment-relevant one for a site box without a
+    # discrete card — the same proxy the efficiency axis reports, never called "edge".
+    device: str | None = None
     display: bool = True
     save_snapshots: bool = True
     fps: float | None = None  # override the source's declared frame rate
@@ -452,11 +456,16 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
 
         if tracking:
             result = model.track(
-                frame, persist=True, tracker=config.tracker, conf=config.conf, verbose=False
+                frame,
+                persist=True,
+                tracker=config.tracker,
+                conf=config.conf,
+                device=config.device,
+                verbose=False,
             )[0]
             boxes, track_ids = boxes_from_result(result)
         else:
-            result = model.predict(frame, conf=config.conf, verbose=False)[0]
+            result = model.predict(frame, conf=config.conf, device=config.device, verbose=False)[0]
             boxes, _ = boxes_from_result(result)
             track_ids = still_ids(index, len(boxes))
 
