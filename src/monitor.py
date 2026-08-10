@@ -61,6 +61,7 @@ TRACKER = "bytetrack.yaml"  # C9 (Zhang 2022): detector-agnostic, real-time, occ
 # behaviour is the behaviour the results chapter reports, rather than an unmeasured one.
 DEFAULT_CONF = 0.25
 DEFAULT_FPS = 25.0  # only used when a file declines to report its own frame rate
+WARMUP_FRAMES = 15  # discarded before latency is summarised, matching src.efficiency
 
 BY_NAME = {name: cls for cls, name in CLASS_NAMES.items()}
 COMPLIANT_COLOUR = (0, 200, 0)
@@ -82,6 +83,7 @@ class DemoConfig:
     conf: float = DEFAULT_CONF
     association_threshold: float = THRESHOLD
     tracker: str = TRACKER
+    track: bool | None = None  # None = track video and live sources, not directories of stills
     dwell_seconds: float = DEFAULT_DWELL_SECONDS
     grace_seconds: float = DEFAULT_GRACE_SECONDS
     out: Path = Path("D:/runs/X06-demo")
@@ -144,6 +146,11 @@ class Source:
     @property
     def label(self) -> str:
         return f"{self.kind}:{self.handle}"
+
+    @property
+    def stills(self) -> bool:
+        """Whether the frames are unrelated images rather than a continuous sequence."""
+        return self.kind == "images"
 
 
 def resolve_source(spec: str) -> Source:
@@ -224,6 +231,16 @@ def boxes_from_result(result) -> tuple[list[Box], list[int | None]]:
         boxes.append(Box(int(result.boxes.cls[position]), xc, yc, w, h))
         track_ids.append(int(ids[position]) if ids is not None else None)
     return boxes, track_ids
+
+
+def still_ids(index: int, count: int) -> list[int]:
+    """Identities for an untracked frame of stills: unique per image, so nothing debounces.
+
+    Each photograph is its own incident. Giving its people ids that cannot recur means every
+    violating worker is alerted once and none is suppressed as a repeat of someone in an
+    unrelated picture.
+    """
+    return [index * 1000 + position for position in range(count)]
 
 
 def missing_for(person: PersonState, required: tuple[int, ...]) -> tuple[int, ...]:
@@ -369,14 +386,22 @@ class Summary:
     latencies_ms: list[float] = field(default_factory=list, repr=False)
 
     def stats(self) -> dict:
-        """Latency summary. Median leads: a single stalled frame should not set the figure."""
-        if not self.latencies_ms:
+        """Latency summary over the frames after warm-up.
+
+        The first frames pay for CUDA context creation and kernel selection — 88 ms against a
+        17 ms median in the first smoke run — so they are discarded exactly as the efficiency
+        axis discards its warm-up, and for the same reason: they measure starting the program,
+        not running it. Median leads, so one stalled frame does not set the figure.
+        """
+        measured = self.latencies_ms[WARMUP_FRAMES:] or self.latencies_ms
+        if not measured:
             return {}
-        ordered = sorted(self.latencies_ms)
+        ordered = sorted(measured)
         mean = sum(ordered) / len(ordered)
         median = ordered[len(ordered) // 2]
         return {
             "frames": self.frames,
+            "measured_frames": len(ordered),
             "mean_ms": round(mean, 2),
             "median_ms": round(median, 2),
             "p95_ms": round(ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))], 2),
@@ -401,8 +426,18 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
     snapshots.mkdir(exist_ok=True)
 
     model = YOLO(str(config.weights))
+    tracking = config.track if config.track is not None else not source.stills
+    dwell_seconds = config.dwell_seconds
+    if not tracking:
+        # A tracker over unrelated stills is worse than no tracker: ByteTrack only returns
+        # detections it has confirmed across consecutive frames, so on a directory of separate
+        # images it silently withholds most boxes for a frame — and a withheld helmet reads as
+        # a bare head. Each image is therefore scored on its own, which also makes dwell
+        # meaningless, since there is no elapsed time between two unrelated photographs.
+        logger.info("stills source: detecting per image, no tracking and no dwell")
+        dwell_seconds = 0.0
     timer = DwellTracker(
-        dwell_seconds=config.dwell_seconds,
+        dwell_seconds=dwell_seconds,
         grace_seconds=config.grace_seconds,
         zone=zone.name if zone else "frame",
     )
@@ -415,10 +450,16 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
         began = time.perf_counter()
         now = (time.perf_counter() - started) if source.live else index / fps
 
-        result = model.track(
-            frame, persist=True, tracker=config.tracker, conf=config.conf, verbose=False
-        )[0]
-        boxes, track_ids = boxes_from_result(result)
+        if tracking:
+            result = model.track(
+                frame, persist=True, tracker=config.tracker, conf=config.conf, verbose=False
+            )[0]
+            boxes, track_ids = boxes_from_result(result)
+        else:
+            result = model.predict(frame, conf=config.conf, verbose=False)[0]
+            boxes, _ = boxes_from_result(result)
+            track_ids = still_ids(index, len(boxes))
+
         assignment = associate(boxes, threshold=config.association_threshold)
         violating, untracked = violations_in_zone(
             assignment.people, track_ids, zone, config.required_ppe
@@ -429,8 +470,12 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
         summary.people_detections += len(assignment.people)
         summary.untracked_violations += untracked
 
-        if alerts:
-            banner = "  ".join(f"#{a.track_id} missing {a.missing_names}" for a in alerts)
+        # Rebuilt every frame from who is currently in breach, so the banner shows the state
+        # now rather than the last thing that happened to fire.
+        banner = "  ".join(
+            f"#{track_id} missing {'+'.join(CLASS_NAMES[c] for c in missing)}"
+            for track_id, missing in sorted(violating.items())
+        )
         annotated = draw_overlay(
             frame, zone, assignment.people, track_ids, config.required_ppe, banner
         )

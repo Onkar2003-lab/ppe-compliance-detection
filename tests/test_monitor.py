@@ -16,12 +16,15 @@ import yaml
 
 from src.associate import HELMET, PERSON, VEST, Box, associate
 from src.monitor import (
+    WARMUP_FRAMES,
     DemoConfig,
+    Summary,
     Violation,
     boxes_from_result,
     missing_for,
     parse_required,
     resolve_source,
+    still_ids,
     violations_in_zone,
     write_log,
 )
@@ -152,6 +155,46 @@ def test_resolve_source_reads_the_spec_without_opening_it(spec, kind, live):
 
 def test_resolve_source_treats_a_directory_as_stills(tmp_path):
     assert resolve_source(str(tmp_path)).kind == "images"
+
+
+def test_stills_are_not_tracked_by_default():
+    """ByteTrack withholds detections it has not confirmed across consecutive frames.
+
+    Over a directory of unrelated photographs that means most boxes vanish for a frame, and a
+    withheld helmet reads as a bare head — the demo's first smoke run flagged two helmeted
+    workers because of it. Stills are therefore detected per image instead.
+    """
+    assert resolve_source("D:/clips/yard.mp4").stills is False
+    assert resolve_source("0").stills is False
+
+
+def test_stills_are_detected_per_image(tmp_path):
+    assert resolve_source(str(tmp_path)).stills is True
+
+
+def test_still_ids_never_repeat_across_images():
+    """One person per photograph, alerted once, never debounced against a stranger."""
+    first = still_ids(0, 3)
+    second = still_ids(1, 3)
+    assert first == [0, 1, 2]
+    assert not set(first) & set(second)
+
+
+def test_latency_stats_discard_the_warm_up():
+    """The first frames pay for CUDA start-up and would otherwise set the headline figure."""
+    summary = Summary(frames=25)
+    summary.latencies_ms = [90.0] * WARMUP_FRAMES + [10.0] * 10
+    stats = summary.stats()
+    assert stats["measured_frames"] == 10
+    assert stats["median_ms"] == 10.0
+    assert stats["median_fps"] == 100.0
+
+
+def test_latency_stats_keep_every_frame_of_a_short_run():
+    """A run shorter than the warm-up still reports something, rather than nothing."""
+    summary = Summary(frames=3)
+    summary.latencies_ms = [20.0, 20.0, 20.0]
+    assert summary.stats()["measured_frames"] == 3
 
 
 def test_config_round_trips_from_yaml(tmp_path):
