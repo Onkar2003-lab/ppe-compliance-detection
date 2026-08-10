@@ -11,7 +11,14 @@ weights: "D:/runs/X04-y8n-s0-sh17/weights/best.pt"
 
 # Generic video source: a recorded file (reproducible, the default), a webcam index such as
 # `0`, an `rtsp://` or `http://` stream, or a directory of stills.
-source: "D:/Dissertation/demo/clip.mp4"
+#
+# The default clip was chosen by measurement, not by eye (2026-08-10). Candidates were scored
+# for camera fixity — median global translation between frames, by phase correlation — and for
+# how much compliance variety the detector actually sees in them. This one holds still to
+# 0.08 px/frame, which is what a site camera does and what makes a zone drawn on frame one stay
+# meaningful, and carries ~11 workers per frame with both compliant and non-compliant among
+# them. `site-fixed-pair.mp4` is the quieter counterpart: two workers, mostly compliant.
+source: "D:/Dissertation/demo-video/site-fixed-crew.mp4"
 
 # The safety zone, drawn with `python -m src.zone --source <same source> --name loading-bay`.
 # Null watches the whole frame, which is a weaker demonstration but a valid one.
