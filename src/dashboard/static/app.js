@@ -5,7 +5,8 @@
 const $ = (id) => document.getElementById(id);
 
 const state = {
-  points: [],          // normalised [x, y]
+  points: [],          // normalised [x, y], whichever way they were placed
+  mode: 'rect',        // 'rect' = drag a box (default) · 'polygon' = click each corner
   sourceReady: false,
   running: false,
   seen: new Set(),     // violation rows already in the table
@@ -105,6 +106,7 @@ function showEditor() {
 
 const canvas = $('zone-canvas');
 const ctx = canvas.getContext('2d');
+const MIN_DRAG = 0.02;  // ignore an accidental click-drag of a couple of percent
 
 function resizeCanvas() {
   const image = $('frame');
@@ -114,32 +116,92 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
-canvas.addEventListener('click', (event) => {
-  if (state.running) return;
+/* Two ways to mark the zone. Dragging a box is the default because most zones are a
+   rectangle and one drag is the whole interaction; clicking a shape is there for the
+   L-shaped bay around an obstruction. Both end up as a normalised polygon, so the server,
+   the saved zone file and the membership test never learn which was used. */
+document.querySelectorAll('[data-zone-mode]').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('[data-zone-mode]').forEach((b) =>
+      b.classList.toggle('active', b === button));
+    state.mode = button.dataset.zoneMode;
+    state.points = [];
+    $('zone-undo').disabled = state.mode === 'rect';
+    $('zone-help').innerHTML = state.mode === 'rect'
+      ? 'Drag across the frame to box off the area where PPE is mandatory. A worker counts as inside when their <strong>feet</strong> are within it.'
+      : 'Click the frame to place each corner, right-click to undo. Three points or more makes a zone.';
+    $('zone-hint').textContent = state.mode === 'rect'
+      ? 'Drag across the frame to mark the safety zone'
+      : 'Click to place each corner · right-click to undo';
+    drawZone();
+  });
+});
+
+const clamp = (value) => Math.min(1, Math.max(0, value));
+
+function pointAt(event) {
   const box = canvas.getBoundingClientRect();
-  state.points.push([
-    clamp((event.clientX - box.left) / box.width),
-    clamp((event.clientY - box.top) / box.height),
-  ]);
+  return [clamp((event.clientX - box.left) / box.width), clamp((event.clientY - box.top) / box.height)];
+}
+
+/** The four corners of the box spanned by two dragged points. */
+function corners([x1, y1], [x2, y2]) {
+  const [left, right] = [Math.min(x1, x2), Math.max(x1, x2)];
+  const [top, bottom] = [Math.min(y1, y2), Math.max(y1, y2)];
+  return [[left, top], [right, top], [right, bottom], [left, bottom]];
+}
+
+let dragFrom = null;
+
+canvas.addEventListener('mousedown', (event) => {
+  if (state.running || state.mode !== 'rect' || event.button !== 0) return;
+  dragFrom = pointAt(event);
+  state.points = [];
+});
+
+canvas.addEventListener('mousemove', (event) => {
+  if (!dragFrom) return;
+  drawZone(corners(dragFrom, pointAt(event)));
+});
+
+['mouseup', 'mouseleave'].forEach((type) =>
+  canvas.addEventListener(type, (event) => {
+    if (!dragFrom) return;
+    const to = pointAt(event);
+    const box = corners(dragFrom, to);
+    dragFrom = null;
+    // A click with no real drag is not a zone — it would be an invisible sliver nobody meant.
+    const wide = Math.abs(to[0] - box[0][0]) > MIN_DRAG;
+    const tall = Math.abs(to[1] - box[0][1]) > MIN_DRAG;
+    state.points = wide && tall ? box : [];
+    drawZone();
+  }));
+
+canvas.addEventListener('click', (event) => {
+  if (state.running || state.mode !== 'polygon') return;
+  state.points.push(pointAt(event));
   drawZone();
 });
 canvas.addEventListener('contextmenu', (event) => {
   event.preventDefault();
-  state.points.pop();
+  if (state.mode === 'polygon') state.points.pop();
+  else state.points = [];
   drawZone();
 });
 $('zone-undo').addEventListener('click', () => { state.points.pop(); drawZone(); });
 $('zone-clear').addEventListener('click', () => { state.points = []; drawZone(); });
 
-const clamp = (value) => Math.min(1, Math.max(0, value));
-
-function drawZone() {
-  $('zone-count').textContent = state.points.length;
-  $('zone-hint').classList.toggle('hidden', state.points.length > 0 || state.running);
+function drawZone(preview) {
+  const points = preview || state.points;
+  $('zone-status').textContent = points.length
+    ? (state.mode === 'rect' ? 'Zone set — drag again to replace it.'
+                             : `${points.length} corners placed — three or more makes a zone.`)
+    : 'No zone — watching the whole frame.';
+  $('zone-hint').classList.toggle('hidden', points.length > 0 || state.running);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (!state.points.length) return;
+  if (!points.length) return;
 
-  const pixels = state.points.map(([x, y]) => [x * canvas.width, y * canvas.height]);
+  const pixels = points.map(([x, y]) => [x * canvas.width, y * canvas.height]);
   ctx.beginPath();
   pixels.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   if (pixels.length > 2) {
@@ -306,6 +368,9 @@ function say(message, isError) {
   if (isError) setPill('error', 'Problem');
   $('source-label').textContent = message;
 }
+
+// Undo belongs to the click-a-corner mode; a dragged box is replaced by dragging again.
+$('zone-undo').disabled = true;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) =>

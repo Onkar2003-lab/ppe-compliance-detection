@@ -67,16 +67,19 @@
 
     <section class="card" aria-labelledby="h-zone">
       <h2 id="h-zone">2 · Safety zone</h2>
-      <p class="meta">
-        Click the first frame to place corners of the area where PPE is mandatory. A worker
-        counts as inside when their <strong>feet</strong> are within it.
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-zone-mode="rect" role="tab">Drag a box</button>
+        <button class="tab" data-zone-mode="polygon" role="tab">Draw a shape</button>
+      </div>
+      <p class="meta" id="zone-help">
+        Drag across the frame to box off the area where PPE is mandatory. A worker counts as
+        inside when their <strong>feet</strong> are within it.
       </p>
       <div class="row">
         <button type="button" class="secondary" id="zone-undo">Undo point</button>
         <button type="button" class="secondary" id="zone-clear">Clear</button>
       </div>
-      <p class="meta"><span id="zone-count">0</span> points placed — three or more makes a zone.
-        Leave it empty to watch the whole frame.</p>
+      <p class="meta"><span id="zone-status">No zone — watching the whole frame.</span></p>
     </section>
 
     <section class="card" aria-labelledby="h-settings">
@@ -146,9 +149,7 @@
       <div id="canvas-wrap" class="canvas-wrap hidden">
         <img id="frame" alt="First frame of the selected source">
         <canvas id="zone-canvas"></canvas>
-        <div id="zone-hint" class="zone-hint">
-          Click the frame to place the corners of the safety zone · right-click to undo
-        </div>
+        <div id="zone-hint" class="zone-hint">Drag across the frame to mark the safety zone</div>
       </div>
       <img id="live" class="live hidden" alt="Live monitor output">
       <p id="banner" class="banner hidden"></p>
