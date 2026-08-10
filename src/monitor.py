@@ -564,6 +564,7 @@ def main() -> int:
     parser.add_argument("--dwell", type=float, default=None, help="seconds before an alert")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=None, help="stop after N frames")
+    parser.add_argument("--device", default=None, help="'cpu' for the CPU-constrained case")
     parser.add_argument("--display", dest="display", action="store_true", default=None)
     parser.add_argument("--no-display", dest="display", action="store_false")
     args = parser.parse_args()
@@ -579,6 +580,7 @@ def main() -> int:
         ("dwell_seconds", args.dwell),
         ("out", args.out),
         ("limit_frames", args.limit),
+        ("device", args.device),
         ("display", args.display),
     ):
         if value is not None:
