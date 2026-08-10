@@ -278,3 +278,60 @@ def test_subset_yaml_truncates_training_and_leaves_validation_whole(tmp_path: Pa
     # The subset must not land inside the run directory: creating it early makes Ultralytics
     # treat the run-ID as used and write results to an incremented folder instead.
     assert "out" in written.parts
+
+
+def test_memory_stops_a_worker_flickering_between_states():
+    """A helmet missed for one frame must not turn a compliant worker into a violation."""
+    from src.dwell import PPEMemory
+    from src.monitor import assess
+
+    person = person_at(0.25)
+    helmet = Box(cls=HELMET, xc=0.25, yc=0.33, w=0.05, h=0.04)
+    memory = PPEMemory(seconds=1.0)
+
+    with_helmet = associate([person, helmet]).people
+    _views, violating, _ = assess(with_helmet, [1, None], LEFT_HALF, (HELMET,), memory, 0.0)
+    assert violating == {}
+
+    # Next frame: the detector loses the helmet. The person has not taken it off.
+    without = associate([person]).people
+    views, violating, _ = assess(without, [1], LEFT_HALF, (HELMET,), memory, 0.04)
+    assert violating == {}
+    assert views[0].missing == ()
+
+    # A second later with no helmet seen since, it is a genuine violation.
+    views, violating, _ = assess(without, [1], LEFT_HALF, (HELMET,), memory, 1.5)
+    assert violating == {1: (HELMET,)}
+    assert views[0].in_breach is True
+
+
+def test_assess_reports_people_outside_the_zone_without_flagging_them():
+    """The drawing needs every person; only those inside the zone can be in breach."""
+    from src.monitor import assess
+
+    people = associate([person_at(0.25), person_at(0.75)]).people
+    views, violating, _ = assess(people, [1, 2], LEFT_HALF, (HELMET,))
+    assert len(views) == 2
+    assert [v.in_zone for v in views] == [True, False]
+    assert [v.in_breach for v in views] == [True, False]
+    assert list(violating) == [1]
+
+
+def test_a_torso_crop_of_the_same_worker_is_suppressed():
+    """One worker drawing two boxes made the tight one read as helmetless — a false alert."""
+    from src.monitor import suppress_duplicate_people
+
+    body = Box(cls=PERSON, xc=0.5, yc=0.5, w=0.30, h=0.80)
+    torso = Box(cls=PERSON, xc=0.5, yc=0.58, w=0.20, h=0.55)  # same worker, head cropped off
+    neighbour = Box(cls=PERSON, xc=0.80, yc=0.5, w=0.28, h=0.78)  # a different, overlapping worker
+    helmet = Box(cls=HELMET, xc=0.5, yc=0.14, w=0.06, h=0.05)
+
+    keep = suppress_duplicate_people([body, torso, neighbour, helmet])
+    assert keep == [0, 2, 3]  # the torso goes; the neighbour and the helmet stay
+
+
+def test_suppression_leaves_a_clean_frame_alone():
+    from src.monitor import suppress_duplicate_people
+
+    boxes = [person_at(0.2), person_at(0.8), Box(cls=HELMET, xc=0.2, yc=0.33, w=0.05, h=0.04)]
+    assert suppress_duplicate_people(boxes) == [0, 1, 2]

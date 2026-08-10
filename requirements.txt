@@ -17,6 +17,9 @@ pyyaml>=6.0
 tqdm>=4.66
 kagglehub>=0.3            # download SH17 (mugheesahmad/sh17-dataset-for-ppe-detection)
 
+# --- demonstration console (O6) ---
+flask>=3.0                # local dashboard: drop a video, draw the zone, watch the monitor
+
 # --- experiment tracking ---
 tensorboard>=2.16         # local training curves (native Ultralytics logging)
 

@@ -30,9 +30,20 @@ association_threshold: 0.80
 
 tracker: "bytetrack.yaml"   # C9 (Zhang 2022)
 
-# Seconds of continuous non-compliance inside the zone before one alert fires. 0 = instant,
-# which suits a hard exclusion zone; a few seconds suppresses people passing the edge.
-dwell_seconds: 0.0
+# Alarm behaviour, following process-industry alarm-management practice (ANSI/ISA-18.2;
+# EEMUA 191): an on-delay timer and a hysteresis, the two techniques those standards prescribe
+# against chattering and fleeting alarms. The analogy to vision alerts is stated as an analogy
+# in the write-up — but the failure it prevents (an operator swamped into ignoring alerts) is
+# the same one. Measured on the 15.6 s demonstration clip: dwell 3 s with a 1 s memory takes
+# the alert count from 27 to 1.
+#
+# On-delay: seconds of continuous non-compliance inside the zone before one alert fires.
+# 0 fires instantly, which suits a hard exclusion zone.
+dwell_seconds: 3.0
+# Hysteresis: how long a piece of PPE stays believed after it was last seen on a tracked
+# person. Detection is per frame, so without this a helmet occluded for two frames flips a
+# compliant worker to violating and back. 0 disables it and judges every frame alone.
+memory_seconds: 1.0
 # How long a worker may go undetected before the incident is treated as over. F27 measured
 # that losing the person is this pipeline's normal failure, so short gaps are bridged.
 grace_seconds: 2.0

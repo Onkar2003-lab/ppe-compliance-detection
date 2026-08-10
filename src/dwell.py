@@ -36,7 +36,22 @@ from dataclasses import dataclass, field
 
 from src.associate import CLASS_NAMES
 
-DEFAULT_DWELL_SECONDS = 0.0
+# Alarm behaviour follows process-industry alarm-management practice, where the failure mode is
+# identical to ours: an operator swamped by fleeting alarms stops reading them. ANSI/ISA-18.2 and
+# EEMUA 191 both prescribe **on-delay timers** and **deadband/hysteresis** against chattering and
+# fleeting alarms, and EEMUA 191 puts a manageable steady-state load below roughly six alarms per
+# operator-hour. `DEFAULT_DWELL_SECONDS` is the on-delay; `DEFAULT_MEMORY_SECONDS` is the
+# hysteresis. Three seconds also carries operational meaning here: a worker in a marked zone for
+# three continuous seconds is working there, not walking past its corner.
+# ⚠️ The transfer from process alarms to vision alerts is an **analogy** and must be written as
+# one; and the alarm-rate band is a design target, not something this project has measured under
+# steady-state conditions.
+DEFAULT_DWELL_SECONDS = 3.0
+# How long a piece of PPE stays believed once it has been seen on a tracked person. Detection
+# is per frame and imperfect: a helmet occluded for two frames does not leave the head, so
+# without a memory the same worker flips between compliant and violating several times a
+# second. One second spans the flicker without pretending PPE persists indefinitely.
+DEFAULT_MEMORY_SECONDS = 1.0
 # How long a tracked person may go unseen before their incident is considered over. Two
 # seconds spans the intermittent detection F27 documented without bridging a genuine exit:
 # a worker who leaves the zone and returns inside two seconds has not really left it.
@@ -62,6 +77,50 @@ class Alert:
     def missing_names(self) -> str:
         """The missing PPE as a readable string ("helmet+vest") for the banner and the log."""
         return "+".join(CLASS_NAMES[cls] for cls in self.missing)
+
+
+@dataclass
+class PPEMemory:
+    """Short-term memory of what each tracked person was last seen wearing.
+
+    A detector answers independently every frame, so a helmet that is occluded by a beam, or
+    simply missed once, reads as a bare head — and the same worker flickers between compliant
+    and violating several times a second. That is unusable in front of a supervisor, and it
+    is not what the footage shows: **PPE does not come on and off at frame rate.**
+
+    So a bound item is believed for :attr:`seconds` after it was last seen on that person.
+    The trade is deliberate and worth stating: it suppresses flicker at the cost of taking up
+    to a second to notice PPE genuinely being removed — acceptable when the dwell threshold
+    already imposes a delay before anyone is alerted, and when the measured failure of this
+    pipeline is over-flagging, not under-flagging.
+
+    **This is a property of watching video, and it applies only to tracked people.** The
+    violation axis and the demo evaluation score unrelated stills, where there is no "last
+    frame" to remember and no identity to remember it against, so they are unaffected — the
+    demo's agreement with the reported numbers is untouched.
+
+    Set ``seconds`` to 0 to disable it and judge every frame on its own.
+    """
+
+    seconds: float = DEFAULT_MEMORY_SECONDS
+    _seen: dict[tuple[int, int], float] = field(default_factory=dict, repr=False)
+
+    def observe(self, now: float, track_id: int, worn: tuple[int, ...] | set[int]) -> None:
+        """Record what this person is wearing right now."""
+        for cls in worn:
+            self._seen[(track_id, cls)] = now
+
+    def missing(self, now: float, track_id: int, required: tuple[int, ...]) -> tuple[int, ...]:
+        """Required PPE this person is missing, after allowing for what was recently seen."""
+        return tuple(
+            cls
+            for cls in required
+            if now - self._seen.get((track_id, cls), float("-inf")) > self.seconds
+        )
+
+    def forget(self, before: float) -> None:
+        """Drop entries older than ``before``, so a long run does not accumulate every track."""
+        self._seen = {key: when for key, when in self._seen.items() if when >= before}
 
 
 @dataclass

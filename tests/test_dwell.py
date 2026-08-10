@@ -10,7 +10,7 @@ by a hand-labelled clip.
 from __future__ import annotations
 
 from src.associate import HELMET, VEST
-from src.dwell import DwellTracker
+from src.dwell import DwellTracker, PPEMemory
 
 MISSING_HELMET = (HELMET,)
 MISSING_BOTH = (HELMET, VEST)
@@ -121,3 +121,53 @@ def test_missing_names_reads_as_the_log_row_will():
     tracker = DwellTracker(dwell_seconds=0.0)
     alert = tracker.update(0.0, {7: (VEST,)})[0]
     assert alert.missing_names == "vest"
+
+
+# ------------------------------------------------------- PPE memory (the flicker fix)
+
+REQUIRED = (HELMET, VEST)
+
+
+def test_a_helmet_missed_for_one_frame_does_not_undress_the_worker():
+    """The defect a viewer sees first: the same person flipping compliant/violating."""
+    memory = PPEMemory(seconds=1.0)
+    memory.observe(0.0, 7, REQUIRED)  # seen with both
+    memory.observe(0.04, 7, (VEST,))  # helmet missed on this frame
+    assert memory.missing(0.04, 7, REQUIRED) == ()
+
+
+def test_ppe_is_forgotten_once_the_memory_expires():
+    """Believing it forever would hide a worker who really did take the helmet off."""
+    memory = PPEMemory(seconds=1.0)
+    memory.observe(0.0, 7, REQUIRED)
+    memory.observe(1.5, 7, (VEST,))
+    assert memory.missing(1.5, 7, REQUIRED) == (HELMET,)
+
+
+def test_memory_is_per_person():
+    memory = PPEMemory(seconds=1.0)
+    memory.observe(0.0, 7, REQUIRED)
+    memory.observe(0.0, 9, ())
+    assert memory.missing(0.0, 7, REQUIRED) == ()
+    assert memory.missing(0.0, 9, REQUIRED) == REQUIRED
+
+
+def test_a_worker_never_seen_wearing_anything_is_missing_everything():
+    memory = PPEMemory(seconds=1.0)
+    assert memory.missing(0.0, 7, REQUIRED) == REQUIRED
+
+
+def test_zero_seconds_disables_the_memory():
+    """The evaluation path judges each frame alone, so the switch has to be real."""
+    memory = PPEMemory(seconds=0.0)
+    memory.observe(0.0, 7, REQUIRED)
+    assert memory.missing(0.04, 7, REQUIRED) == REQUIRED
+
+
+def test_forget_drops_stale_tracks():
+    memory = PPEMemory(seconds=1.0)
+    memory.observe(0.0, 7, REQUIRED)
+    memory.observe(10.0, 9, REQUIRED)
+    memory.forget(before=5.0)
+    assert memory.missing(10.0, 9, REQUIRED) == ()
+    assert memory.missing(10.0, 7, REQUIRED) == REQUIRED

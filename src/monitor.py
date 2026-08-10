@@ -46,8 +46,23 @@ from pathlib import Path
 
 import yaml
 
-from src.associate import CLASS_NAMES, PERSON, THRESHOLD, Box, PersonState, associate
-from src.dwell import DEFAULT_DWELL_SECONDS, DEFAULT_GRACE_SECONDS, Alert, DwellTracker
+from src.associate import (
+    CLASS_NAMES,
+    PERSON,
+    THRESHOLD,
+    Box,
+    PersonState,
+    associate,
+    containment,
+)
+from src.dwell import (
+    DEFAULT_DWELL_SECONDS,
+    DEFAULT_GRACE_SECONDS,
+    DEFAULT_MEMORY_SECONDS,
+    Alert,
+    DwellTracker,
+    PPEMemory,
+)
 from src.utils.logging import get_logger
 from src.zone import Zone, load_zone
 
@@ -62,6 +77,10 @@ TRACKER = "bytetrack.yaml"  # C9 (Zhang 2022): detector-agnostic, real-time, occ
 DEFAULT_CONF = 0.25
 DEFAULT_FPS = 25.0  # only used when a file declines to report its own frame rate
 WARMUP_FRAMES = 15  # discarded before latency is summarised, matching src.efficiency
+# How much of a person box must lie inside a larger one before it is treated as the same
+# worker seen twice. High on purpose: two people standing close overlap partially, a
+# duplicate box overlaps almost totally.
+DUPLICATE_OVERLAP = 0.80
 
 BY_NAME = {name: cls for cls, name in CLASS_NAMES.items()}
 COMPLIANT_COLOUR = (0, 200, 0)
@@ -84,7 +103,15 @@ class DemoConfig:
     association_threshold: float = THRESHOLD
     tracker: str = TRACKER
     track: bool | None = None  # None = track video and live sources, not directories of stills
+    # Alarm behaviour follows process-industry alarm-management practice (ANSI/ISA-18.2;
+    # EEMUA 191), which prescribes on-delay timers and deadband/hysteresis to suppress
+    # chattering and fleeting alarms. `dwell_seconds` is the on-delay; `memory_seconds` is the
+    # hysteresis on a person's PPE state. The transfer from process alarms to vision alerts is
+    # an analogy and is stated as one — but the failure they prevent is identical, and EEMUA
+    # 191's manageable rate (under ~6 alarms per operator-hour) gives the defaults a criterion
+    # to be measured against rather than asserted.
     dwell_seconds: float = DEFAULT_DWELL_SECONDS
+    memory_seconds: float = DEFAULT_MEMORY_SECONDS
     grace_seconds: float = DEFAULT_GRACE_SECONDS
     out: Path = Path("D:/runs/X06-demo")
     # None lets Ultralytics choose (the GPU when there is one). "cpu" forces the
@@ -93,6 +120,9 @@ class DemoConfig:
     device: str | None = None
     display: bool = True
     save_snapshots: bool = True
+    # One worker, one box: see `suppress_duplicate_people`. On for the live demonstration,
+    # off in the evaluation, which must stay identical to the axis it is compared with.
+    suppress_duplicates: bool = True
     fps: float | None = None  # override the source's declared frame rate
     limit_frames: int | None = None
 
@@ -237,6 +267,35 @@ def boxes_from_result(result) -> tuple[list[Box], list[int | None]]:
     return boxes, track_ids
 
 
+def suppress_duplicate_people(boxes: list[Box], overlap: float = DUPLICATE_OVERLAP) -> list[int]:
+    """Drop a person box that sits almost entirely inside a larger person box.
+
+    One worker sometimes draws two boxes — a full-body one and a tighter crop of their torso.
+    Class-wise NMS does not remove it, because both are confident and their IoU is modest, but
+    the consequence is severe here: the tight box excludes the head, so the helmet cannot be
+    bound to it and the same worker appears twice, once compliant and once in breach. That is
+    the "alert matching no labelled worker" category the S6.5 evaluation counts separately.
+
+    Only the *smaller* box goes, and only when it is at least ``overlap`` contained in the
+    larger. Two workers standing close together overlap partially, not almost totally, so they
+    both survive. PPE boxes are never touched — a helmet is *meant* to sit inside a person.
+
+    Returns:
+        The indices of the boxes to keep, in order — indices rather than boxes so the caller
+        can drop the matching track ids without comparing boxes by value.
+    """
+    people = [(index, box) for index, box in enumerate(boxes) if box.cls == PERSON]
+    drop: set[int] = set()
+    for index, box in people:
+        for other_index, other in people:
+            if index == other_index or other.area <= box.area or other_index in drop:
+                continue
+            if containment(box, other) >= overlap:
+                drop.add(index)
+                break
+    return [index for index in range(len(boxes)) if index not in drop]
+
+
 def still_ids(index: int, count: int) -> list[int]:
     """Identities for an untracked frame of stills: unique per image, so nothing debounces.
 
@@ -257,32 +316,75 @@ def missing_for(person: PersonState, required: tuple[int, ...]) -> tuple[int, ..
     return tuple(cls for cls in required if not person.wears(cls))
 
 
+@dataclass(frozen=True)
+class PersonView:
+    """One person as the console sees them: where they stand and what they are missing."""
+
+    index: int
+    track_id: int | None
+    in_zone: bool
+    missing: tuple[int, ...]
+
+    @property
+    def in_breach(self) -> bool:
+        return self.in_zone and bool(self.missing)
+
+
+def assess(
+    people: list[PersonState],
+    track_ids: list[int | None],
+    zone: Zone | None,
+    required: tuple[int, ...],
+    memory: PPEMemory | None = None,
+    now: float = 0.0,
+) -> tuple[list[PersonView], dict[int, tuple[int, ...]], int]:
+    """Judge every detected person once, and let the drawing and the alerting share the verdict.
+
+    Returns the per-person view (what gets drawn), the mapping the dwell timer consumes, and a
+    count of violating people the tracker could not give an identity to. Those last are
+    reported rather than folded in: without an id there is nothing to debounce against, and
+    treating them all as one person would collapse a whole site into a single incident — the
+    defect the S2 skeleton exposed.
+
+    When a ``memory`` is supplied, a tracked person's missing set is the *remembered* one, so a
+    helmet that flickers out of the detector's view for a frame does not flip a compliant
+    worker to violating and back. Untracked people have no identity to remember against and
+    are judged on the frame alone.
+    """
+    views: list[PersonView] = []
+    violating: dict[int, tuple[int, ...]] = {}
+    untracked = 0
+
+    for person in people:
+        in_zone = zone is None or zone.contains_box(person.box)
+        track_id = track_ids[person.index]
+        missing = missing_for(person, required)
+
+        if memory is not None and track_id is not None:
+            memory.observe(now, track_id, tuple(c for c in required if person.wears(c)))
+            missing = memory.missing(now, track_id, required)
+
+        views.append(
+            PersonView(index=person.index, track_id=track_id, in_zone=in_zone, missing=missing)
+        )
+        if not in_zone or not missing:
+            continue
+        if track_id is None:
+            untracked += 1
+        else:
+            violating[track_id] = missing
+
+    return views, violating, untracked
+
+
 def violations_in_zone(
     people: list[PersonState],
     track_ids: list[int | None],
     zone: Zone | None,
     required: tuple[int, ...],
 ) -> tuple[dict[int, tuple[int, ...]], int]:
-    """Who, of the tracked people standing in the zone, is missing required PPE.
-
-    Returns the mapping the dwell timer consumes, plus a count of violating people the tracker
-    could not give an identity to. Those are reported rather than folded in: without an id
-    there is nothing to debounce against, and treating them all as one person would collapse a
-    whole site into a single incident — the defect the S2 skeleton exposed.
-    """
-    violating: dict[int, tuple[int, ...]] = {}
-    untracked = 0
-    for person in people:
-        if zone is not None and not zone.contains_box(person.box):
-            continue
-        missing = missing_for(person, required)
-        if not missing:
-            continue
-        track_id = track_ids[person.index]
-        if track_id is None:
-            untracked += 1
-            continue
-        violating[track_id] = missing
+    """Who, of the tracked people standing in the zone, is missing required PPE (no memory)."""
+    _views, violating, untracked = assess(people, track_ids, zone, required)
     return violating, untracked
 
 
@@ -330,8 +432,7 @@ def draw_overlay(
     frame,
     zone: Zone | None,
     people: list[PersonState],
-    track_ids: list[int | None],
-    required: tuple[int, ...],
+    views: list[PersonView],
     banner: str,
 ):
     """Draw the zone, each person's compliance state, and the alert banner onto a frame."""
@@ -348,21 +449,22 @@ def draw_overlay(
         canvas = cv2.addWeighted(overlay, 0.18, canvas, 0.82, 0)
         cv2.polylines(canvas, [points], True, ZONE_COLOUR, 2)
 
+    by_index = {view.index: view for view in views}
     for person in people:
-        inside = zone is None or zone.contains_box(person.box)
-        missing = missing_for(person, required)
-        colour = VIOLATION_COLOUR if (inside and missing) else COMPLIANT_COLOUR
+        view = by_index.get(person.index)
+        if view is None:
+            continue
+        colour = VIOLATION_COLOUR if view.in_breach else COMPLIANT_COLOUR
         x1, y1, x2, y2 = person.box.corners
         top_left = (int(x1 * width), int(y1 * height))
         bottom_right = (int(x2 * width), int(y2 * height))
         cv2.rectangle(canvas, top_left, bottom_right, colour, 2)
-        if not inside:
+        if not view.in_zone:
             continue
-        track_id = track_ids[person.index]
-        label = "+".join(CLASS_NAMES[c] for c in missing) if missing else "compliant"
+        label = "+".join(CLASS_NAMES[c] for c in view.missing) if view.missing else "compliant"
         cv2.putText(
             canvas,
-            f"#{track_id if track_id is not None else '?'} {label}",
+            f"#{view.track_id if view.track_id is not None else '?'} {label}",
             (top_left[0], max(16, top_left[1] - 6)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
@@ -414,9 +516,35 @@ class Summary:
         }
 
 
-def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
-    """Drive the monitor over its source and return the violations and the run summary."""
-    import cv2
+@dataclass
+class FrameResult:
+    """One processed frame, for whatever is driving the monitor."""
+
+    index: int
+    seconds: float
+    annotated: object  # the frame with zone, boxes and banner drawn on it
+    alerts: list[Alert]
+    violations: list[Violation]  # log rows written for this frame's alerts
+    people: int
+    in_breach: int  # people currently in the zone missing required PPE
+    latency_ms: float
+
+
+def iterate(config: DemoConfig, summary: Summary | None = None):
+    """Run the monitor and yield each processed frame.
+
+    The loop lives here so that everything driving the demo — the command line, the dashboard,
+    a future notebook — runs the *same* code. A second copy of this loop is exactly how a
+    dashboard ends up quietly disagreeing with the numbers the chapter reports.
+
+    Args:
+        config: the demo's settings.
+        summary: an existing :class:`Summary` to accumulate into, so a caller watching a live
+            run can read the counters while they fill. A fresh one is made if omitted.
+
+    Yields:
+        One :class:`FrameResult` per frame, in order.
+    """
     from ultralytics import YOLO
 
     source = resolve_source(config.source)
@@ -432,6 +560,9 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
     model = YOLO(str(config.weights))
     tracking = config.track if config.track is not None else not source.stills
     dwell_seconds = config.dwell_seconds
+    # Memory needs both a clock and an identity; unrelated stills have neither, so it is off
+    # there by construction and the per-image evaluation is untouched by it.
+    memory = PPEMemory(config.memory_seconds) if (tracking and config.memory_seconds > 0) else None
     if not tracking:
         # A tracker over unrelated stills is worse than no tracker: ByteTrack only returns
         # detections it has confirmed across consecutive frames, so on a directory of separate
@@ -445,10 +576,8 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
         grace_seconds=config.grace_seconds,
         zone=zone.name if zone else "frame",
     )
-    violations: list[Violation] = []
-    summary = Summary()
+    summary = summary if summary is not None else Summary()
     started = time.perf_counter()
-    banner = ""
 
     for index, frame in frames_from(source, config.limit_frames):
         began = time.perf_counter()
@@ -469,9 +598,14 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
             boxes, _ = boxes_from_result(result)
             track_ids = still_ids(index, len(boxes))
 
+        if config.suppress_duplicates:
+            keep = suppress_duplicate_people(boxes)
+            if len(keep) != len(boxes):
+                boxes = [boxes[i] for i in keep]
+                track_ids = [track_ids[i] for i in keep]
         assignment = associate(boxes, threshold=config.association_threshold)
-        violating, untracked = violations_in_zone(
-            assignment.people, track_ids, zone, config.required_ppe
+        views, violating, untracked = assess(
+            assignment.people, track_ids, zone, config.required_ppe, memory, now
         )
         alerts = timer.update(now, violating)
 
@@ -485,12 +619,11 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
             f"#{track_id} missing {'+'.join(CLASS_NAMES[c] for c in missing)}"
             for track_id, missing in sorted(violating.items())
         )
-        annotated = draw_overlay(
-            frame, zone, assignment.people, track_ids, config.required_ppe, banner
-        )
+        annotated = draw_overlay(frame, zone, assignment.people, views, banner)
 
+        rows = []
         for alert in alerts:
-            violations.append(record(alert, index, now, annotated, snapshots, config))
+            rows.append(record(alert, index, now, annotated, snapshots, config))
             logger.info(
                 "VIOLATION frame %d · t=%.2fs · track %d · missing %s · dwell %.2fs",
                 index,
@@ -502,12 +635,34 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
         summary.alerts += len(alerts)
         # Timed here so the figure covers everything a deployment pays for — detection,
         # tracking, association, zone, dwell and drawing — not the detector alone.
-        summary.latencies_ms.append((time.perf_counter() - began) * 1000)
+        latency = (time.perf_counter() - began) * 1000
+        summary.latencies_ms.append(latency)
 
+        yield FrameResult(
+            index=index,
+            seconds=now,
+            annotated=annotated,
+            alerts=alerts,
+            violations=rows,
+            people=len(assignment.people),
+            in_breach=len(violating),
+            latency_ms=latency,
+        )
+
+
+def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
+    """Drive the monitor over its source and return the violations and the run summary."""
+    import cv2
+
+    violations: list[Violation] = []
+    summary = Summary()
+
+    for result in iterate(config, summary):
+        violations.extend(result.violations)
         if config.display:
-            cv2.imshow("zone compliance monitor", annotated)
+            cv2.imshow("zone compliance monitor", result.annotated)
             if cv2.waitKey(1) & 0xFF in (27, ord("q")):
-                logger.info("stopped by user at frame %d", index)
+                logger.info("stopped by user at frame %d", result.index)
                 break
 
     if config.display:
