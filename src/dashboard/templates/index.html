@@ -91,26 +91,31 @@
         <label class="check"><input type="checkbox" id="req-vest" checked> Vest</label>
       </div>
 
-      <label for="dwell">Alarm on-delay (dwell) · <output id="dwell-out">3.0 s</output></label>
+      <label for="dwell">Wait this long before alerting · <output id="dwell-out">3.0 s</output></label>
       <input type="range" id="dwell" min="0" max="10" step="0.5" value="3">
       <p class="meta">
-        Continuous breach required before one alert fires. 0 fires instantly, for a hard
-        exclusion zone. Default follows alarm-management practice (ANSI/ISA-18.2, EEMUA 191),
-        which prescribes on-delay timers against fleeting alarms.
+        Someone must be in the zone without their PPE for this long before it counts as an
+        incident. 0 alerts the instant they are seen; a few seconds ignores people walking past.
+        <span class="fine">Alarm on-delay — ANSI/ISA-18.2, EEMUA 191.</span>
       </p>
 
-      <label for="memory">PPE memory (hysteresis) · <output id="memory-out">1.0 s</output></label>
+      <label for="memory">Ignore brief detection gaps · <output id="memory-out">1.0 s</output></label>
       <input type="range" id="memory" min="0" max="5" step="0.5" value="1">
       <p class="meta">
-        How long an item stays believed after it was last seen on a tracked person. Without it,
-        a helmet missed for one frame flips a compliant worker to violating and back.
+        A helmet the camera loses for a moment is still on the worker's head, so it stays
+        believed for this long. Set it to 0 and people flicker between pass and fail.
+        <span class="fine">Hysteresis on the per-person PPE state.</span>
       </p>
 
-      <label for="conf">Detector confidence · <output id="conf-out">0.25</output></label>
+      <label for="conf">How sure the detector must be · <output id="conf-out">0.25</output></label>
       <input type="range" id="conf" min="0.05" max="0.75" step="0.05" value="0.25">
-      <p class="meta">0.25 is the operating point the reported results were scored at.</p>
+      <p class="meta">
+        Lower finds more people and more false boxes; higher is stricter and misses more.
+        <span class="fine">Confidence threshold — 0.25 is the value the reported results were
+        scored at, so the demo behaves like the numbers.</span>
+      </p>
 
-      <label for="model">Detector</label>
+      <label for="model">Which trained model to use</label>
       <select id="model">
         {% for model in models %}
           <option value="{{ model.value }}" {% if model.recommended %}selected{% endif %}>
@@ -119,11 +124,33 @@
         {% endfor %}
       </select>
 
-      <label for="device">Compute</label>
+      <label for="device">Run on</label>
       <select id="device">
-        <option value="">GPU when available</option>
-        <option value="cpu">CPU only (deployment proxy)</option>
+        <option value="">Graphics card (fast)</option>
+        <option value="cpu">Processor only — what a site box without a graphics card would do</option>
       </select>
+    </section>
+
+    <section class="card" aria-labelledby="h-legend">
+      <h2 id="h-legend">Reading the video</h2>
+      <ul class="legend">
+        <li class="violation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 1.8 20.8h20.4L12 3.2Z"/><path class="glyph" d="M12 9.4v4.6M12 17.1v.1"/></svg>
+          <span><strong>PPE missing</strong>In the zone without required equipment. Raises an alert once the wait has passed.</span>
+        </li>
+        <li class="compliant">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path class="glyph" d="m7.8 12.3 2.9 2.9 5.5-6"/></svg>
+          <span><strong>Compliant</strong>In the zone and wearing everything required. Checked and passed.</span>
+        </li>
+        <li class="outside">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path class="glyph" d="M5.6 5.6l12.8 12.8"/></svg>
+          <span><strong>Outside the zone</strong>Seen, but not judged — which is not the same as passing.</span>
+        </li>
+        <li class="zone">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2" stroke-dasharray="4 3"/></svg>
+          <span><strong>The zone</strong>A worker counts as inside when their <em>feet</em> are within it.</span>
+        </li>
+      </ul>
     </section>
 
     <div class="actions">

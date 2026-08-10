@@ -335,3 +335,16 @@ def test_suppression_leaves_a_clean_frame_alone():
 
     boxes = [person_at(0.2), person_at(0.8), Box(cls=HELMET, xc=0.2, yc=0.33, w=0.05, h=0.04)]
     assert suppress_duplicate_people(boxes) == [0, 1, 2]
+
+
+def test_the_banner_caps_the_names_and_keeps_the_count():
+    """On a busy site the full list runs off the frame; the count is what gets read."""
+    from src.monitor import summarise_breaches
+
+    assert summarise_breaches({}) == ""
+    assert summarise_breaches({7: (HELMET,)}) == "1 in breach:  #7 no helmet"
+    many = {i: (HELMET, VEST) for i in range(6)}
+    line = summarise_breaches(many)
+    assert line.startswith("6 in breach:")
+    assert line.endswith("+3 more")
+    assert "no helmet or vest" in line

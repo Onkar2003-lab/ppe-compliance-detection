@@ -86,6 +86,9 @@ BY_NAME = {name: cls for cls, name in CLASS_NAMES.items()}
 COMPLIANT_COLOUR = (0, 200, 0)
 VIOLATION_COLOUR = (0, 0, 235)
 ZONE_COLOUR = (0, 220, 220)
+# Someone outside the zone is not being judged, which is not the same as passing. Drawing them
+# green said "compliant" about a person the system never assessed.
+OUTSIDE_COLOUR = (170, 170, 170)
 
 
 # ---------------------------------------------------------------------------------- config
@@ -435,47 +438,135 @@ def draw_overlay(
     views: list[PersonView],
     banner: str,
 ):
-    """Draw the zone, each person's compliance state, and the alert banner onto a frame."""
+    """Draw the zone, each person's state, the legend and the alert banner onto a frame.
+
+    **Three colours, three meanings, and the third one matters.** Red is a person in the zone
+    missing required PPE. Green is a person in the zone wearing it. **Grey is a person outside
+    the zone — not judged at all**, which is a different statement from "compliant" and used to
+    be drawn green, so a bare-headed worker on the far side of the site read as a pass.
+
+    Text is sized from the frame, not fixed: a 0.5-scale label is legible on 720p and invisible
+    on 4K, and this demonstration runs on both.
+    """
     import cv2
     import numpy as np
 
     canvas = frame.copy()
     height, width = canvas.shape[:2]
+    scale = max(0.55, min(2.2, height / 1100))  # one readable size at 720p and at 2160p
+    thick = max(2, round(scale * 2))
 
     if zone is not None:
         points = np.array(zone.to_pixels(width, height), dtype=np.int32)
         overlay = canvas.copy()
         cv2.fillPoly(overlay, [points], ZONE_COLOUR)
         canvas = cv2.addWeighted(overlay, 0.18, canvas, 0.82, 0)
-        cv2.polylines(canvas, [points], True, ZONE_COLOUR, 2)
+        cv2.polylines(canvas, [points], True, ZONE_COLOUR, thick)
 
     by_index = {view.index: view for view in views}
     for person in people:
         view = by_index.get(person.index)
         if view is None:
             continue
-        colour = VIOLATION_COLOUR if view.in_breach else COMPLIANT_COLOUR
+        if not view.in_zone:
+            # One word: a crowd standing outside the zone produces a row of these, and the
+            # legend already says what "outside" means.
+            colour, label = OUTSIDE_COLOUR, "outside"
+        elif view.in_breach:
+            colour = VIOLATION_COLOUR
+            label = "no " + " or ".join(CLASS_NAMES[c] for c in view.missing)
+        else:
+            colour, label = COMPLIANT_COLOUR, "compliant"
+
         x1, y1, x2, y2 = person.box.corners
         top_left = (int(x1 * width), int(y1 * height))
         bottom_right = (int(x2 * width), int(y2 * height))
-        cv2.rectangle(canvas, top_left, bottom_right, colour, 2)
-        if not view.in_zone:
-            continue
-        label = "+".join(CLASS_NAMES[c] for c in view.missing) if view.missing else "compliant"
-        cv2.putText(
+        # A thinner box for someone outside the zone: present, visibly not being judged.
+        cv2.rectangle(canvas, top_left, bottom_right, colour, thick if view.in_zone else 1)
+
+        text = f"#{view.track_id if view.track_id is not None else '?'} {label}"
+        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
+        anchor = (top_left[0], max(th + 8, top_left[1] - 8))
+        # Text over a busy site photograph is unreadable without something behind it.
+        cv2.rectangle(
             canvas,
-            f"#{view.track_id if view.track_id is not None else '?'} {label}",
-            (top_left[0], max(16, top_left[1] - 6)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            colour,
-            2,
+            (anchor[0] - 4, anchor[1] - th - 6),
+            (anchor[0] + tw + 6, anchor[1] + 6),
+            (0, 0, 0),
+            -1,
         )
+        cv2.putText(canvas, text, anchor, cv2.FONT_HERSHEY_SIMPLEX, scale, colour, thick)
+
+    draw_legend(canvas, scale, thick, zone)
 
     if banner:
-        cv2.rectangle(canvas, (0, 0), (width, 34), (0, 0, 0), -1)
-        cv2.putText(canvas, banner, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, VIOLATION_COLOUR, 2)
+        bar = int(46 * scale)
+        cv2.rectangle(canvas, (0, 0), (width, bar), (0, 0, 0), -1)
+        cv2.putText(
+            canvas,
+            banner,
+            (int(12 * scale), int(bar * 0.7)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            scale,
+            VIOLATION_COLOUR,
+            thick,
+        )
     return canvas
+
+
+def summarise_breaches(violating: dict[int, tuple[int, ...]], limit: int = 3) -> str:
+    """The banner line: who is in breach right now, capped so it fits across the frame."""
+    if not violating:
+        return ""
+    names = [
+        f"#{track_id} no {' or '.join(CLASS_NAMES[c] for c in missing)}"
+        for track_id, missing in sorted(violating.items())[:limit]
+    ]
+    extra = len(violating) - len(names)
+    head = f"{len(violating)} in breach:  " + "   ".join(names)
+    return head + (f"   +{extra} more" if extra else "")
+
+
+def draw_legend(canvas, scale: float, thick: int, zone: Zone | None) -> None:
+    """A colour key in the corner, so the frame explains itself without the dashboard."""
+    import cv2
+
+    height = canvas.shape[0]
+    entries = [
+        (VIOLATION_COLOUR, "in zone, PPE missing"),
+        (COMPLIANT_COLOUR, "in zone, compliant"),
+        (OUTSIDE_COLOUR, "outside zone, not judged"),
+    ]
+    if zone is not None:
+        entries.append((ZONE_COLOUR, zone.name.replace("-", " ")))
+
+    pad, row = int(14 * scale), int(30 * scale)
+    box = int(16 * scale)
+    text_scale = scale * 0.72
+    widest = max(
+        cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, text_scale, 1)[0][0]
+        for _, label in entries
+    )
+    panel_w = widest + box + pad * 3
+    panel_h = row * len(entries) + pad
+    origin = (pad, height - panel_h - pad)
+
+    panel = canvas.copy()
+    cv2.rectangle(panel, origin, (origin[0] + panel_w, origin[1] + panel_h), (18, 18, 18), -1)
+    cv2.addWeighted(panel, 0.72, canvas, 0.28, 0, dst=canvas)
+
+    for index, (colour, label) in enumerate(entries):
+        y = origin[1] + pad // 2 + row * index + box
+        cv2.rectangle(canvas, (origin[0] + pad, y - box), (origin[0] + pad + box, y), colour, -1)
+        cv2.putText(
+            canvas,
+            label,
+            (origin[0] + pad * 2 + box, y - 1),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            text_scale,
+            (235, 235, 235),
+            max(1, thick - 1),
+        )
 
 
 # ------------------------------------------------------------------------------------- run
@@ -614,11 +705,10 @@ def iterate(config: DemoConfig, summary: Summary | None = None):
         summary.untracked_violations += untracked
 
         # Rebuilt every frame from who is currently in breach, so the banner shows the state
-        # now rather than the last thing that happened to fire.
-        banner = "  ".join(
-            f"#{track_id} missing {'+'.join(CLASS_NAMES[c] for c in missing)}"
-            for track_id, missing in sorted(violating.items())
-        )
+        # now rather than the last thing that happened to fire. Capped at three names: on a
+        # busy site the full list runs off the edge of the frame and the count is what a
+        # supervisor reads anyway.
+        banner = summarise_breaches(violating)
         annotated = draw_overlay(frame, zone, assignment.people, views, banner)
 
         rows = []

@@ -194,3 +194,35 @@ td img { width: 76px; height: 44px; object-fit: cover; border-radius: 4px; borde
 .mono { font-family: var(--mono); font-size: 12.5px; }
 
 .disclaimer { color: var(--ink-faint); font-size: 12.5px; margin: 0; max-width: 78ch; }
+
+/* Small print: the technical name for a control the label describes in plain words. Kept
+   because the dissertation needs the term, moved out of the way because the operator does not. */
+.fine { display: block; margin-top: 3px; color: #5f6a77; font-size: 11.5px; }
+
+/* The legend earns its space only if it is read at a glance, so each row carries the same
+   colour the overlay uses, an icon that says the same thing without colour (colour-blind
+   viewers, and printed figures), and one line of plain explanation. */
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.legend li {
+  display: grid; grid-template-columns: 30px 1fr; gap: 11px; align-items: center;
+  padding: 9px 11px; border-radius: 8px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--tone);
+  font-size: 12px; color: var(--ink-faint); line-height: 1.4;
+}
+.legend strong {
+  display: block; color: var(--ink); font-weight: 600; font-size: 13px;
+  letter-spacing: -0.01em; margin-bottom: 1px;
+}
+.legend svg {
+  width: 26px; height: 26px; justify-self: center;
+  fill: none; stroke: var(--tone); stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.legend .glyph { stroke: var(--tone); stroke-width: 2.1; }
+.legend em { font-style: normal; color: var(--ink); }
+
+.legend .violation { --tone: #ff5540; }
+.legend .compliant { --tone: #3fbf5a; }
+.legend .outside   { --tone: #97a3b0; }
+.legend .zone      { --tone: #d9b528; }
