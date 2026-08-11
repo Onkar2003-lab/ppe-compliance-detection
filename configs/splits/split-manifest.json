@@ -1,0 +1,60 @@
+{
+  "generated_by": "src/harmonise.py",
+  "target_space": {
+    "0": "person",
+    "1": "helmet",
+    "2": "vest"
+  },
+  "source_maps": {
+    "sh17": {
+      "0": 0,
+      "10": 1,
+      "16": 2
+    },
+    "chv": {
+      "0": 0,
+      "1": 2,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "5": 1
+    }
+  },
+  "seed": 0,
+  "val_fraction_sh17": 0.1,
+  "exclusions_source": "configs\\splits\\X01-cross-dataset-duplicates.yaml",
+  "excluded": {
+    "chv": 12,
+    "sh17": 13
+  },
+  "splits": {
+    "sh17": {
+      "train": {
+        "images": 5832,
+        "split_id": "5707d57d1e65"
+      },
+      "val": {
+        "images": 647,
+        "split_id": "3a8265901147"
+      },
+      "test": {
+        "images": 1615,
+        "split_id": "232dcc019591"
+      }
+    },
+    "chv": {
+      "train": {
+        "images": 1064,
+        "split_id": "18743a2bd145"
+      },
+      "val": {
+        "images": 130,
+        "split_id": "9e317df0520c"
+      },
+      "test": {
+        "images": 132,
+        "split_id": "f3060bfbab12"
+      }
+    }
+  }
+}

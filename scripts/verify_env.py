@@ -28,6 +28,7 @@ from src.utils.logging import get_logger
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _CONFIG_PATH = _REPO_ROOT / "configs" / "base.yaml"
 _EXPECTED_GPU = "RTX 4070 Laptop"
+TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu124"
 
 logger = get_logger("verify_env")
 
@@ -67,10 +68,7 @@ def main() -> int:
         import torch
     except ImportError:
         logger.error("torch not installed. Install the CUDA build first (README .1):")
-        logger.error(
-            "  pip install torch torchvision "
-            "--index-url https://download.pytorch.org/whl/cu124"
-        )
+        logger.error("  pip install torch torchvision --index-url %s", TORCH_INDEX_URL)
         return 1
 
     logger.info("torch            : %s", torch.__version__)
@@ -95,9 +93,7 @@ def main() -> int:
 
         logger.info("ultralytics      : %s", ultralytics.__version__)
     except ImportError:
-        logger.error(
-            "ultralytics not installed -- run: pip install -r requirements.txt"
-        )
+        logger.error("ultralytics not installed -- run: pip install -r requirements.txt")
         ok = False
 
     try:

@@ -8,6 +8,7 @@ list behind it, so its stability is tested explicitly.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from src.harmonise import (
@@ -76,6 +77,24 @@ def test_stratum_keys_on_the_class_combination(tmp_path: Path):
     _labelled(tmp_path, {"a": "0 0.5 0.5 0.2 0.2\n2 0.4 0.4 0.1 0.1", "b": ""})
     assert stratum(tmp_path / "a.txt") == "0-2"
     assert stratum(tmp_path / "b.txt") == "background"
+
+
+def test_released_split_lists_match_the_manifest_ids():
+    """The committed split lists ARE the splits every reported number was scored on.
+
+    S7 releases the six image lists so a reader can check our splits rather than take them on
+    trust. That only means something if the lists cannot drift from the manifest that names
+    them, so the IDs are recomputed here from the committed files. Editing a list without
+    regenerating the manifest fails this test — which is the point.
+    """
+    splits = Path("configs/splits")
+    manifest = json.loads((splits / "split-manifest.json").read_text(encoding="utf-8"))
+    for dataset, entries in manifest["splits"].items():
+        for name, expected in entries.items():
+            listed = (splits / f"{dataset}-{name}.txt").read_text(encoding="utf-8").split()
+            stems = sorted(Path(line).stem for line in listed)
+            assert len(stems) == expected["images"], f"{dataset}-{name} image count"
+            assert split_id(stems) == expected["split_id"], f"{dataset}-{name} split ID"
 
 
 TARGET_NAMES_INVERSE = {name: cls for cls, name in TARGET_NAMES.items()}

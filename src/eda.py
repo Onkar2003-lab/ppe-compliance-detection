@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -664,6 +665,9 @@ def main() -> int:
 
     report = build_report(sh17, chv, sl, si, cl, ci, overlap, figures)
     (out / "summary.md").write_text(report, encoding="utf-8")
+    # The report holds → and ±, which a cp1252 console cannot encode: without this the whole
+    # job dies on its last line, after every figure has already been written.
+    sys.stdout.reconfigure(errors="replace")
     print(report)
     logger.info("report written: %s", out / "summary.md")
     return 0
