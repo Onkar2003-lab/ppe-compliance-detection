@@ -159,6 +159,7 @@ class Evaluation:
     required: tuple[int, ...]
     images: int = 0
     scores: dict[str, AlertScore] = field(default_factory=dict)
+    suppress_duplicates: bool = False
 
 
 def alerts_for(
@@ -239,9 +240,20 @@ def evaluate(
     confidence: float = CONFIDENCE,
     match_iou: float = MATCH_IOU,
     limit: int | None = None,
+    suppress_duplicates: bool = False,
 ) -> Evaluation:
-    """Score every zone in :data:`ZONES` for one set of weights."""
+    """Score every zone in :data:`ZONES` for one set of weights.
+
+    ``suppress_duplicates`` runs :func:`src.monitor.suppress_duplicate_people` over the
+    detections before scoring, matching what the live demonstration does. It defaults to
+    **off** because the S6.5 numbers were produced before the suppression existed (F37), and
+    silently changing the default would move a recorded result without anybody deciding to.
+    Turning it on is the sensitivity analysis: it should shift the "alert on an unmatched
+    detection" column, which is the category duplicate person boxes create.
+    """
     from ultralytics import YOLO
+
+    from src.monitor import suppress_duplicate_people
 
     truth = load_ground_truth(pictor)
     images_dir = pictor / "Images"
@@ -253,6 +265,7 @@ def evaluate(
         match_iou=match_iou,
         required=required,
         scores={name: AlertScore(zone=name) for name in ZONES},
+        suppress_duplicates=suppress_duplicates,
     )
 
     names = sorted(truth)[:limit] if limit else sorted(truth)
@@ -265,6 +278,9 @@ def evaluate(
         # Detected once, scored by every zone: the zones then differ only in geometry, which
         # is the whole point of comparing them.
         predictions, width, height = predictions_for(model, path, confidence)
+        if suppress_duplicates:
+            keep = suppress_duplicate_people(predictions)
+            predictions = [predictions[index] for index in keep]
         workers = [
             Worker(box=to_normalised(box, width, height), helmet=helmet, vest=vest, split=split)
             for box, helmet, vest, split in truth[image]
@@ -363,6 +379,11 @@ def main() -> int:
         help="required PPE (default helmet: only 1.6 %% of Pictor workers wear a vest)",
     )
     parser.add_argument("--limit", type=int, default=None, help="score only the first N images")
+    parser.add_argument(
+        "--suppress-duplicates",
+        action="store_true",
+        help="drop person boxes contained in a larger one, as the live demo does (F37)",
+    )
     args = parser.parse_args()
 
     if not args.weights.exists():
@@ -371,7 +392,13 @@ def main() -> int:
 
     required = tuple(dict.fromkeys(_class_of(name) for name in args.required))
     evaluation = evaluate(
-        args.weights, args.pictor, required, args.conf, args.match_iou, args.limit
+        args.weights,
+        args.pictor,
+        required,
+        args.conf,
+        args.match_iou,
+        args.limit,
+        args.suppress_duplicates,
     )
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -387,6 +414,7 @@ def main() -> int:
                     "required_ppe": [CLASS_NAMES[c] for c in evaluation.required],
                     "association_threshold": "src.associate.THRESHOLD (SH17/CHV train only)",
                     "tracking": "off — Pictor images are unrelated stills",
+                    "duplicate_suppression": "on" if evaluation.suppress_duplicates else "off",
                 },
                 "zones": {
                     name: {
