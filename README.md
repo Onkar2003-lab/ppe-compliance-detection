@@ -31,7 +31,7 @@ code/
     verify_env.py        ← GPU / CUDA / dataset sanity check (run this first)
     make_demo_clip.py    ← renders stills into a clip, for latency measurement only
   src/                   ← the pipeline (§3)
-  tests/                 ← 207 tests; the logic that decides a claim is tested, not sampled
+  tests/                 ← 193 tests; the logic that decides a claim is tested, not sampled
   notebooks/             ← jupytext-paired exploration (outputs stripped)
 ```
 
@@ -70,6 +70,12 @@ and find both dataset roots (from `configs/base.yaml`). It exits non-zero otherw
 
 > If `Activate.ps1` trips the execution policy in a fresh window, call the interpreter directly:
 > `.venv\Scripts\python.exe -m src.score`. Every command below works either way.
+
+> **Clone to a short path on Windows** (`D:\ppe-compliance-detection`, not somewhere nested deep in
+> `AppData\Local\Temp\…`). The pinned JupyterLab widget extensions carry filenames that exceed
+> `MAX_PATH`, and pip aborts mid-install with `OSError: [Errno 2] No such file or directory` on a
+> `…webpack_sharing_consume_default_jquery…js`. Nothing to do with torch or the pipeline — the
+> notebook stack is in the lock because the environment was frozen wholesale.
 
 ### Frozen versions (env built 2026-07-25 — repro-critical)
 
@@ -236,18 +242,33 @@ Where each reported result comes from. Numbers are canonical in the vault
 | Demo end-to-end latency (GPU / CPU) | `python -m src.monitor --config configs/demo.yaml --out <dir> --no-display` (add `--device cpu` for the CPU case) | `demo-metrics.json` |
 | Zone membership, dwell and debounce behaviour | `pytest tests/test_zone.py tests/test_dwell.py` | 23 cases, exact |
 
-### Verifying a number from a clean checkout
+### Verifying a number from a clean checkout — done, and it passes
 
 Evaluation is deterministic: re-scoring a set of weights on a frozen test split returns the same
-number every time. So the cheapest end-to-end check is one run of the accuracy axis —
+number every time. So the release check is one run of the accuracy axis:
 
 ```bash
-python -m src.score --pattern X04-y8n-s2-chv --out <scratch-dir>
+git clone <this repo> && cd ppe-compliance-detection
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe -m src.score --pattern X04-y8n-s2-chv --out <scratch-dir>
 ```
 
-— and comparing the result against `D:/runs/X05-accuracy/X05-accuracy-per-run.json`. Training
-reproduction is a stronger claim and is **not** made here: cuDNN and AMP are non-deterministic on
-this hardware, so a retrained run lands near its original, not on it.
+Run on **2026-08-11** from a fresh clone and a fresh environment built from `requirements.lock`,
+against `X04-y8n-s2-chv` — chosen because it trained start to finish with no resume, so nothing
+about it is qualified. **All 16 reported values came back bit-identical** to
+`D:/runs/X05-accuracy/X05-accuracy-per-run.json`: both mAP50 and mAP50-95, precision and recall,
+all six per-class scores, and both transfer deltas. In-domain mAP50 `0.9009138488046622`,
+cross-domain `0.5340983294274633`, transfer delta `-0.3668`, to the last digit.
+
+The weights themselves are not distributed (§7); the check needs `D:/runs/X04-*/weights/best.pt`
+and the harmonised data on disk. What it establishes is that the released code, configs and split
+lists turn those weights into exactly the reported numbers — no hidden state on the machine that
+produced them.
+
+⛔ **Training reproduction is a stronger claim and is not made.** cuDNN and AMP are
+non-deterministic on this hardware, so a retrained run would land near its original, not on it.
 
 ---
 
@@ -260,8 +281,11 @@ this hardware, so a retrained run lands near its original, not on it.
   test. **No "X beats Y" without the test** — exact paired sign-flip for pairwise comparisons,
   Friedman with Nemenyi post-hoc across models.
 - Pictor-PPE is evaluation-only, enforced in `src/guards.py`.
-- `pytest` before any push: 207 tests, `ruff` and `black` clean (line width 100, pinned in
-  `pyproject.toml`).
+- `pytest` before any push: **193 tests** in this released checkout, `ruff` and `black` clean (line
+  width 100, pinned in `pyproject.toml`). The development tree runs 207: the extra 14 cover
+  `src/keepawake.py`, which holds this particular laptop out of Modern Standby during a long
+  training queue. It guards one machine's power behaviour rather than the method, so it is
+  deliberately not released; `src/grid.py` imports it inside a `try`/`except` and runs without it.
 
 ## 7. Licence and citation
 
