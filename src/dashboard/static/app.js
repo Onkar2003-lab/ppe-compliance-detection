@@ -371,6 +371,7 @@ setInterval(async () => {
   $('kpi-people').textContent = status.people.toLocaleString();
   $('kpi-alerts').textContent = status.alerts.toLocaleString();
   $('kpi-breach').textContent = status.in_breach;
+  $('kpi-breach-tile').classList.toggle('live', status.in_breach > 0 && status.running);
   $('kpi-fps').textContent = status.latency?.median_fps ? status.latency.median_fps.toFixed(1) : '—';
 
   // No breach banner here. The frame draws its own, naming who is in breach and what each of
