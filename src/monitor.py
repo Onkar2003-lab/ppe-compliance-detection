@@ -536,8 +536,11 @@ def draw_legend(canvas, scale: float, thick: int, zone: Zone | None) -> None:
     import cv2
 
     height = canvas.shape[0]
+    # "not detected", not "missing": the system knows a vest was not found and bound to a person,
+    # which is not the same as knowing there is no vest. A partly occluded one reads the same way,
+    # and the key is where that distinction belongs — the box labels stay short.
     entries = [
-        (VIOLATION_COLOUR, "in zone, PPE missing"),
+        (VIOLATION_COLOUR, "in zone, required PPE not detected"),
         (COMPLIANT_COLOUR, "in zone, compliant"),
         (OUTSIDE_COLOUR, "outside zone, not judged"),
     ]

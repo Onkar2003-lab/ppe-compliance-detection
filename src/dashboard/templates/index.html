@@ -8,154 +8,205 @@
 </head>
 <body>
 
+<!-- Monoline icon set, drawn here rather than pulled from a library: the console runs with no
+     network, and a hard hat and a vest are the site's own vocabulary, not a generic checkbox. -->
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-file" viewBox="0 0 24 24">
+    <rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m10.4 9.6 4.4 2.4-4.4 2.4z"/>
+  </symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24">
+    <rect x="2.6" y="6.4" width="13" height="11.2" rx="2.4"/><path d="m15.6 12 5.8-3.2v6.4z"/>
+  </symbol>
+  <symbol id="i-stream" viewBox="0 0 24 24">
+    <path d="M5.6 8.4a8 8 0 0 0 0 7.2M18.4 8.4a8 8 0 0 1 0 7.2"/>
+    <path d="M8.8 10.2a4 4 0 0 0 0 3.6M15.2 10.2a4 4 0 0 1 0 3.6"/><circle cx="12" cy="12" r="1.3"/>
+  </symbol>
+  <symbol id="i-zone" viewBox="0 0 24 24">
+    <rect x="3.6" y="5.6" width="16.8" height="12.8" rx="1.6" stroke-dasharray="3.4 2.6"/>
+    <circle cx="3.6" cy="5.6" r="1.5"/><circle cx="20.4" cy="18.4" r="1.5"/>
+  </symbol>
+  <symbol id="i-helmet" viewBox="0 0 24 24">
+    <path d="M3.2 17h17.6"/>
+    <path d="M6.6 17v-3.4a5.4 5.4 0 0 1 10.8 0V17"/>
+    <path d="M9.6 17v-3.6M14.4 17v-3.6"/>
+  </symbol>
+  <symbol id="i-vest" viewBox="0 0 24 24">
+    <path d="M9.7 4.2 6.1 5.9A2 2 0 0 0 5 7.7V20h4.7z"/>
+    <path d="M14.3 4.2l3.6 1.7A2 2 0 0 1 19 7.7V20h-4.7z"/>
+    <path d="M5 13.1h4.7M14.3 13.1H19"/>
+  </symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24">
+    <path d="M4 7.5h16M4 16.5h16"/><circle cx="9.5" cy="7.5" r="2.2"/><circle cx="15" cy="16.5" r="2.2"/>
+  </symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 5.6 18 12 7.5 18.4z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.4" y="6.4" width="11.2" height="11.2" rx="1.8"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24">
+    <path d="M12 4v10.4M8 11l4 3.6 4-3.6M4.8 19.2h14.4"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.6 4.2 4.2 8.8-9.6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7.5 10 4.5 4.4 4.5-4.4"/></symbol>
+</svg>
+
 <header class="bar">
   <div class="brand">
-    <span class="mark" aria-hidden="true"></span>
-    <div>
-      <h1>PPE Zone Compliance Monitor</h1>
-      <p>Person detection, PPE association and zone dwell — the deployed form of the benchmarked system</p>
-    </div>
+    <span class="mark" aria-hidden="true"><svg><use href="#i-helmet"/></svg></span>
+    <h1>PPE Zone Compliance Monitor</h1>
   </div>
   <div class="state">
-    <span id="status-pill" class="pill idle">Idle</span>
     <span id="source-label" class="meta">No source</span>
+    <span id="status-pill" class="pill idle">Idle</span>
   </div>
 </header>
 
 <main>
-  <aside class="controls">
+  <!-- The rail is a sequence because the task is: point it at something, mark the area, say what
+       is required. Each step folds to one line once it is answered, so the console shows what is
+       left to do rather than everything at once. -->
+  <aside class="rail">
 
-    <section class="card" aria-labelledby="h-source">
-      <h2 id="h-source">1 · Source</h2>
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-tab="upload" role="tab">Video file</button>
-        <button class="tab" data-tab="webcam" role="tab">Webcam</button>
-        <button class="tab" data-tab="stream" role="tab">Phone / IP stream</button>
-      </div>
+    <section class="step open" id="step-source">
+      <button type="button" class="step-head" aria-expanded="true" aria-controls="body-source">
+        <span class="step-mark"><span class="step-num">1</span><svg class="step-tick"><use href="#i-check"/></svg></span>
+        <span class="step-text">
+          <span class="step-title">Source</span>
+          <span class="step-sum" id="sum-source">Nothing selected</span>
+        </span>
+        <svg class="step-chev"><use href="#i-chevron"/></svg>
+      </button>
 
-      <div class="panel active" data-panel="upload">
-        <div id="drop" class="drop">
-          <p><strong>Drop a video here</strong></p>
-          <p class="meta">or <button type="button" class="link" id="browse">browse</button> · mp4, mov, avi, mkv</p>
-          <input type="file" id="file" accept="video/*" hidden>
+      <div class="step-body" id="body-source">
+        <div class="seg" role="tablist">
+          <button class="seg-btn active" data-tab="upload" role="tab"><svg><use href="#i-file"/></svg>File</button>
+          <button class="seg-btn" data-tab="webcam" role="tab"><svg><use href="#i-camera"/></svg>Camera</button>
+          <button class="seg-btn" data-tab="stream" role="tab"><svg><use href="#i-stream"/></svg>Stream</button>
         </div>
-      </div>
 
-      <div class="panel" data-panel="webcam">
-        <label for="camera-index">Camera index</label>
-        <input type="number" id="camera-index" value="0" min="0" max="8">
-        <p class="meta">0 is the built-in camera on most laptops.</p>
-        <button type="button" class="secondary" data-open="webcam">Connect camera</button>
-      </div>
+        <div class="panel active" data-panel="upload">
+          <div id="drop" class="drop">
+            <svg class="drop-icon"><use href="#i-file"/></svg>
+            <p><strong>Drop a video here</strong></p>
+            <p class="meta">or <button type="button" class="link" id="browse">browse</button> · mp4, mov, avi, mkv</p>
+            <input type="file" id="file" accept="video/*" hidden>
+          </div>
+        </div>
 
-      <div class="panel" data-panel="stream">
-        <label for="stream-url">Stream URL</label>
-        <input type="text" id="stream-url" placeholder="rtsp://192.168.1.24:8080/h264_ulaw.sdp">
-        <p class="meta">
-          A phone running an IP-camera app, or a site's fixed camera. The monitor treats any
-          RTSP/HTTP stream the same way it treats a file.
+        <div class="panel" data-panel="webcam">
+          <label for="camera-index">Camera index</label>
+          <input type="number" id="camera-index" value="0" min="0" max="8">
+          <p class="meta">0 is the built-in camera on most laptops.</p>
+          <button type="button" class="secondary wide" data-open="webcam">Connect camera</button>
+        </div>
+
+        <div class="panel" data-panel="stream">
+          <label for="stream-url">Stream URL</label>
+          <input type="text" id="stream-url" placeholder="rtsp://192.168.1.24:8080/h264_ulaw.sdp">
+          <p class="meta">A phone running an IP-camera app, or a site's fixed camera. Any RTSP or
+            HTTP stream is treated the same way as a file.</p>
+          <button type="button" class="secondary wide" data-open="stream">Connect stream</button>
+        </div>
+
+        <dl id="source-facts" class="facts hidden">
+          <div><dt>Resolution</dt><dd id="fact-res">—</dd></div>
+          <div><dt>Frame rate</dt><dd id="fact-fps">—</dd></div>
+          <div><dt>Length</dt><dd id="fact-len">—</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="step" id="step-zone">
+      <button type="button" class="step-head" aria-expanded="false" aria-controls="body-zone">
+        <span class="step-mark"><span class="step-num">2</span><svg class="step-tick"><use href="#i-check"/></svg></span>
+        <span class="step-text">
+          <span class="step-title">Safety zone</span>
+          <span class="step-sum" id="sum-zone">Whole frame</span>
+        </span>
+        <svg class="step-chev"><use href="#i-chevron"/></svg>
+      </button>
+
+      <div class="step-body" id="body-zone">
+        <div class="seg" role="tablist">
+          <button class="seg-btn active" data-zone-mode="rect" role="tab"><svg><use href="#i-zone"/></svg>Box</button>
+          <button class="seg-btn" data-zone-mode="polygon" role="tab">Shape</button>
+        </div>
+        <p class="meta" id="zone-help">
+          Drag across the frame to box off the area where PPE is mandatory. A worker counts as
+          inside when their <strong>feet</strong> are within it.
         </p>
-        <button type="button" class="secondary" data-open="stream">Connect stream</button>
+        <div class="row">
+          <button type="button" class="secondary" id="zone-undo">Undo point</button>
+          <button type="button" class="secondary" id="zone-clear">Clear</button>
+        </div>
+        <p class="meta"><span id="zone-status">No zone — watching the whole frame.</span></p>
       </div>
-
-      <dl id="source-facts" class="facts hidden">
-        <div><dt>Resolution</dt><dd id="fact-res">—</dd></div>
-        <div><dt>Frame rate</dt><dd id="fact-fps">—</dd></div>
-        <div><dt>Length</dt><dd id="fact-len">—</dd></div>
-      </dl>
     </section>
 
-    <section class="card" aria-labelledby="h-zone">
-      <h2 id="h-zone">2 · Safety zone</h2>
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-zone-mode="rect" role="tab">Drag a box</button>
-        <button class="tab" data-zone-mode="polygon" role="tab">Draw a shape</button>
+    <section class="step open" id="step-rules">
+      <button type="button" class="step-head" aria-expanded="true" aria-controls="body-rules">
+        <span class="step-mark"><span class="step-num">3</span><svg class="step-tick"><use href="#i-check"/></svg></span>
+        <span class="step-text">
+          <span class="step-title">Required PPE</span>
+          <span class="step-sum" id="sum-rules">Helmet</span>
+        </span>
+        <svg class="step-chev"><use href="#i-chevron"/></svg>
+      </button>
+
+      <div class="step-body" id="body-rules">
+        <div class="ppe">
+          <label class="ppe-item">
+            <input type="checkbox" id="req-helmet" checked>
+            <svg><use href="#i-helmet"/></svg><span>Helmet</span>
+          </label>
+          <label class="ppe-item">
+            <input type="checkbox" id="req-vest">
+            <svg><use href="#i-vest"/></svg><span>Vest</span>
+          </label>
+        </div>
+        <p class="meta fine">Vest is off by default: this build reports helmet compliance as its
+          headline, and vest detection rests on thin training support.</p>
+
+        <details class="tuning">
+          <summary><svg><use href="#i-sliders"/></svg>Tuning<svg class="step-chev"><use href="#i-chevron"/></svg></summary>
+          <div class="tuning-body">
+            <label for="dwell">Wait before alerting · <output id="dwell-out">3.0 s</output></label>
+            <input type="range" id="dwell" min="0" max="10" step="0.5" value="3">
+            <p class="meta">How long someone must be in the zone without their PPE before it counts
+              as an incident. A few seconds ignores people walking past.
+              <span class="fine">Alarm on-delay · ANSI/ISA-18.2, EEMUA 191.</span></p>
+
+            <label for="memory">Ignore brief detection gaps · <output id="memory-out">1.0 s</output></label>
+            <input type="range" id="memory" min="0" max="5" step="0.5" value="1">
+            <p class="meta">A helmet the camera loses for a moment is still on the worker's head.
+              Set this to 0 and people flicker between pass and fail.
+              <span class="fine">Hysteresis on the per-person PPE state.</span></p>
+
+            <label for="conf">Detector confidence · <output id="conf-out">0.25</output></label>
+            <input type="range" id="conf" min="0.05" max="0.75" step="0.05" value="0.25">
+            <p class="meta">Lower finds more people and more false boxes; higher is stricter and
+              misses more. <span class="fine">0.25 is the value the reported results were scored
+              at, so the demo behaves like the numbers.</span></p>
+
+            <label for="model">Trained model</label>
+            <select id="model">
+              {% for model in models %}
+                <option value="{{ model.value }}" {% if model.recommended %}selected{% endif %}>
+                  {{ model.label }}{% if model.recommended %} — recommended{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+
+            <label for="device">Run on</label>
+            <select id="device">
+              <option value="">Graphics card</option>
+              <option value="cpu">Processor only — a site box with no graphics card</option>
+            </select>
+          </div>
+        </details>
       </div>
-      <p class="meta" id="zone-help">
-        Drag across the frame to box off the area where PPE is mandatory. A worker counts as
-        inside when their <strong>feet</strong> are within it.
-      </p>
-      <div class="row">
-        <button type="button" class="secondary" id="zone-undo">Undo point</button>
-        <button type="button" class="secondary" id="zone-clear">Clear</button>
-      </div>
-      <p class="meta"><span id="zone-status">No zone — watching the whole frame.</span></p>
-    </section>
-
-    <section class="card" aria-labelledby="h-settings">
-      <h2 id="h-settings">3 · Rules</h2>
-
-      <label>Required PPE</label>
-      <div class="checks">
-        <label class="check"><input type="checkbox" id="req-helmet" checked> Helmet</label>
-        <label class="check"><input type="checkbox" id="req-vest" checked> Vest</label>
-      </div>
-
-      <label for="dwell">Wait this long before alerting · <output id="dwell-out">3.0 s</output></label>
-      <input type="range" id="dwell" min="0" max="10" step="0.5" value="3">
-      <p class="meta">
-        Someone must be in the zone without their PPE for this long before it counts as an
-        incident. 0 alerts the instant they are seen; a few seconds ignores people walking past.
-        <span class="fine">Alarm on-delay — ANSI/ISA-18.2, EEMUA 191.</span>
-      </p>
-
-      <label for="memory">Ignore brief detection gaps · <output id="memory-out">1.0 s</output></label>
-      <input type="range" id="memory" min="0" max="5" step="0.5" value="1">
-      <p class="meta">
-        A helmet the camera loses for a moment is still on the worker's head, so it stays
-        believed for this long. Set it to 0 and people flicker between pass and fail.
-        <span class="fine">Hysteresis on the per-person PPE state.</span>
-      </p>
-
-      <label for="conf">How sure the detector must be · <output id="conf-out">0.25</output></label>
-      <input type="range" id="conf" min="0.05" max="0.75" step="0.05" value="0.25">
-      <p class="meta">
-        Lower finds more people and more false boxes; higher is stricter and misses more.
-        <span class="fine">Confidence threshold — 0.25 is the value the reported results were
-        scored at, so the demo behaves like the numbers.</span>
-      </p>
-
-      <label for="model">Which trained model to use</label>
-      <select id="model">
-        {% for model in models %}
-          <option value="{{ model.value }}" {% if model.recommended %}selected{% endif %}>
-            {{ model.label }}{% if model.recommended %} — recommended{% endif %}
-          </option>
-        {% endfor %}
-      </select>
-
-      <label for="device">Run on</label>
-      <select id="device">
-        <option value="">Graphics card (fast)</option>
-        <option value="cpu">Processor only — what a site box without a graphics card would do</option>
-      </select>
-    </section>
-
-    <section class="card" aria-labelledby="h-legend">
-      <h2 id="h-legend">Reading the video</h2>
-      <ul class="legend">
-        <li class="violation">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 1.8 20.8h20.4L12 3.2Z"/><path class="glyph" d="M12 9.4v4.6M12 17.1v.1"/></svg>
-          <span><strong>PPE missing</strong>In the zone without required equipment. Raises an alert once the wait has passed.</span>
-        </li>
-        <li class="compliant">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path class="glyph" d="m7.8 12.3 2.9 2.9 5.5-6"/></svg>
-          <span><strong>Compliant</strong>In the zone and wearing everything required. Checked and passed.</span>
-        </li>
-        <li class="outside">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path class="glyph" d="M5.6 5.6l12.8 12.8"/></svg>
-          <span><strong>Outside the zone</strong>Seen, but not judged — which is not the same as passing.</span>
-        </li>
-        <li class="zone">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2" stroke-dasharray="4 3"/></svg>
-          <span><strong>The zone</strong>A worker counts as inside when their <em>feet</em> are within it.</span>
-        </li>
-      </ul>
     </section>
 
     <div class="actions">
-      <button type="button" id="start" class="primary" disabled>Start monitoring</button>
-      <button type="button" id="stop" class="danger hidden">Stop</button>
+      <button type="button" id="start" class="primary" disabled><svg><use href="#i-play"/></svg>Start watching</button>
+      <button type="button" id="stop" class="danger hidden"><svg><use href="#i-stop"/></svg>Stop</button>
     </div>
   </aside>
 
@@ -170,6 +221,7 @@
 
     <div class="viewer">
       <div id="empty" class="empty">
+        <svg class="empty-icon"><use href="#i-zone"/></svg>
         <p>Choose a source to begin.</p>
         <p class="meta">The first frame appears here, and you draw the zone on it.</p>
       </div>
@@ -184,7 +236,7 @@
     <div class="log">
       <div class="log-head">
         <h2>Violation log</h2>
-        <a id="download" class="secondary" href="/api/violations.csv" download>Download CSV</a>
+        <a id="download" class="secondary" href="/api/violations.csv" download><svg><use href="#i-download"/></svg>CSV</a>
       </div>
       <div class="table-scroll">
         <table>
@@ -201,8 +253,8 @@
     <p class="disclaimer">
       Compliance is <em>derived</em>: the detector emits person, helmet and vest only, and a
       calibrated association rule decides what each person is wearing. Track numbers are
-      per-session counters, not identities — no recognition, no biometrics, nothing stored
-      beyond this run's log and evidence frames.
+      per-session counters, not identities — no recognition, no biometrics, nothing stored beyond
+      this run's log and evidence frames.
     </p>
   </section>
 </main>

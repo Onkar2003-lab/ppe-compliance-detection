@@ -14,13 +14,58 @@ const state = {
 
 /* --------------------------------------------------------------- source */
 
-document.querySelectorAll('.tab').forEach((tab) => {
+/* Segmented controls are scoped to their own group. They were not: one handler matched every
+   button on the page, so choosing a zone mode also cleared the source tabs and hid all three
+   source panels, because a zone button has no data-tab to match a panel against. */
+document.querySelectorAll('[data-tab]').forEach((tab) => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
-    document.querySelectorAll('.panel').forEach((p) =>
+    tab.parentElement.querySelectorAll('[data-tab]').forEach((t) => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('[data-panel]').forEach((p) =>
       p.classList.toggle('active', p.dataset.panel === tab.dataset.tab));
   });
 });
+
+/* ----------------------------------------------------------------- steps */
+
+/* The rail is a sequence, so a step that has been answered folds to one line and the next one
+   opens. What is left to do stays on screen; what is settled becomes a summary you can reopen. */
+function openStep(id, open = true) {
+  const step = $(id);
+  step.classList.toggle('open', open);
+  step.querySelector('.step-head').setAttribute('aria-expanded', String(open));
+}
+
+function markStep(id, done, summary) {
+  const step = $(id);
+  step.classList.toggle('done', done);
+  if (summary !== undefined) step.querySelector('.step-sum').textContent = summary;
+}
+
+document.querySelectorAll('.step-head').forEach((head) => {
+  head.addEventListener('click', () => {
+    const step = head.closest('.step');
+    openStep(step.id, !step.classList.contains('open'));
+  });
+});
+
+/** Area of the normalised polygon, as a percentage of the frame — the shoelace formula. */
+function zoneArea(points) {
+  let sum = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[(i + 1) % points.length];
+    sum += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function updateRulesSummary() {
+  const required = [];
+  if ($('req-helmet').checked) required.push('Helmet');
+  if ($('req-vest').checked) required.push('Vest');
+  markStep('step-rules', required.length > 0, required.join(' + ') || 'Nothing required');
+}
+['req-helmet', 'req-vest'].forEach((id) => $(id).addEventListener('change', updateRulesSummary));
 
 const drop = $('drop');
 $('browse').addEventListener('click', () => $('file').click());
@@ -95,6 +140,14 @@ function showSource(info, keepZone = false) {
   if (image.complete) resizeCanvas();  // a cached frame fires `load` before we listen
   $('start').disabled = false;
   setPill('idle', 'Ready');
+
+  // Step one is answered: fold it to its summary and put the operator in front of the zone,
+  // which is the only thing now standing between them and a run.
+  markStep('step-source', true, `${$('source-label').textContent} · ${info.width}×${info.height}`);
+  openStep('step-source', false);
+  openStep('step-zone', true);
+  updateRulesSummary();
+
   drawZone();
 }
 
@@ -178,6 +231,9 @@ canvas.addEventListener('mousemove', (event) => {
     const tall = Math.abs(to[1] - box[0][1]) > MIN_DRAG;
     state.points = wide && tall ? box : [];
     drawZone();
+    // Releasing the drag is the moment the zone is decided, so the step folds to its summary
+    // here and nowhere else: collapsing mid-drag would snatch the controls away mid-thought.
+    if (state.points.length) openStep('step-zone', false);
   }));
 
 canvas.addEventListener('click', (event) => {
@@ -200,6 +256,14 @@ function drawZone(preview) {
     ? (state.mode === 'rect' ? 'Zone set — drag again to replace it.'
                              : `${points.length} corners placed — three or more makes a zone.`)
     : 'No zone — watching the whole frame.';
+
+  // Only a finished polygon counts, and the summary is its share of the frame: "38% of frame"
+  // says what was marked, where "4 points" only says something was.
+  if (!preview) {
+    const settled = points.length >= 3;
+    markStep('step-zone', settled,
+      settled ? `${Math.round(zoneArea(points) * 100)}% of frame` : 'Whole frame');
+  }
   $('zone-hint').classList.toggle('hidden', points.length > 0 || state.running);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!points.length) return;
@@ -370,6 +434,7 @@ function say(message, isError) {
 
 // Undo belongs to the click-a-corner mode; a dragged box is replaced by dragging again.
 $('zone-undo').disabled = true;
+updateRulesSummary();
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) =>
