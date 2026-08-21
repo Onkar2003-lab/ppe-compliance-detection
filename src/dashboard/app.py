@@ -98,8 +98,25 @@ def encode_jpeg(frame, quality: int = 80) -> bytes:
     return buffer.tobytes() if ok else b""
 
 
+WELL_LIT_MEAN = 40.0  # good enough to stop looking; a properly exposed frame sits far above it
+SCAN_FRAMES_FILE = 90  # ~3 s of a 30 fps clip: covers a fade-in, still feels instant
+SCAN_FRAMES_LIVE = 15  # a camera must not stall the console while it exposes
+SAMPLE_EVERY = 3  # decode every third frame; advancing is cheap, decoding is not
+
+
 def grab_first_frame(source_spec: str):
-    """Read one frame from any source, for the zone editor to draw on."""
+    """Read one *usable* frame from any source, for the zone editor to draw on.
+
+    Not simply the first frame that decodes. Footage often opens on black — a clip that fades
+    in, a webcam still exposing — and handing that to the zone editor asks the operator to mark
+    a safety zone on an empty rectangle, with no idea where the site actually is.
+
+    "Not black" is too weak a test: two frames into a fade the picture is technically not blank
+    and still far too dark to point at anything. So the opening seconds are sampled and the
+    brightest frame wins, with an early exit once one is properly exposed. Footage that is
+    genuinely dim throughout still yields its best frame rather than an error, because a dark
+    site is a site, and refusing it would be the console's judgement to make, not ours.
+    """
     import cv2
 
     source = resolve_source(source_spec)
@@ -110,18 +127,34 @@ def grab_first_frame(source_spec: str):
 
     handle = source.handle if source.kind == "camera" else str(source.handle)
     capture = cv2.VideoCapture(handle)
-    # A webcam needs a moment to expose; the first read is often black or fails outright.
-    frame = None
-    for _ in range(10):
-        ok, candidate = capture.read()
-        if ok and candidate is not None:
-            frame = candidate
-            break
-        time.sleep(0.1)
-    capture.release()
-    if frame is None:
+    live = source.kind != "file"
+    best = None
+    best_mean = -1.0
+    try:
+        for index in range(SCAN_FRAMES_LIVE if live else SCAN_FRAMES_FILE):
+            if not capture.grab():
+                if live:
+                    time.sleep(0.1)
+                    continue
+                break  # a file has simply ended
+            if index % SAMPLE_EVERY and not live:
+                continue
+            ok, candidate = capture.retrieve()
+            if not ok or candidate is None:
+                continue
+            level = float(candidate.mean())
+            if level > best_mean:
+                best, best_mean = candidate, level
+            if level >= WELL_LIT_MEAN:
+                break
+    finally:
+        capture.release()
+
+    if best is None:
         raise RuntimeError(f"could not read a frame from {source_spec}")
-    return frame
+    if best_mean < WELL_LIT_MEAN:
+        logger.info("%s never brightens; showing its best frame (mean %.1f)", source_spec, best_mean)
+    return best
 
 
 def describe_source(source_spec: str, frame) -> dict:
@@ -165,7 +198,7 @@ def available_models(runs: Path = DEFAULT_RUNS) -> list[dict]:
             {
                 "value": str(weights),
                 "run_id": run_id,
-                "label": f"{model} · seed {seed} · trained on {trained_on.upper()}",
+                "label": f"{model} · seed {seed} · {trained_on.upper()}",
                 "recommended": run_id == "X04-y8n-s0-sh17",
             }
         )

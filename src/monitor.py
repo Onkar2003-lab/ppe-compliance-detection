@@ -486,7 +486,11 @@ def draw_overlay(
 
         text = f"#{view.track_id if view.track_id is not None else '?'} {label}"
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
-        anchor = (top_left[0], max(th + 8, top_left[1] - 8))
+        # Held inside the frame on both axes. A worker at the right-hand edge is exactly the
+        # one whose verdict runs off the picture, and a label that reads "#785 outsi" says
+        # nothing at all — least of all in a figure, where there is no scrolling to reveal it.
+        anchor_x = min(max(4, top_left[0]), max(4, width - tw - 10))
+        anchor = (anchor_x, max(th + 8, top_left[1] - 8))
         # Text over a busy site photograph is unreadable without something behind it.
         cv2.rectangle(
             canvas,

@@ -54,6 +54,41 @@ def test_no_source_means_no_first_frame(client):
     assert client.get("/api/first-frame").status_code == 404
 
 
+def _fade_in_clip(path, blank_frames=40, size=(160, 120)):
+    """A clip that opens on black and fades up, the way real footage often does."""
+    import cv2
+    import numpy as np
+
+    width, height = size
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, size)
+    for index in range(blank_frames + 20):
+        level = 0 if index < blank_frames else 180
+        writer.write(np.full((height, width, 3), level, dtype=np.uint8))
+    writer.release()
+    return path
+
+
+def test_the_zone_editor_is_not_handed_a_black_frame(tmp_path):
+    """Footage that fades in must not put the operator in front of an empty rectangle.
+
+    Marking a safety zone means pointing at a place, so the frame the editor draws on has to
+    show one. Taking whatever decodes first fails exactly on the footage most likely to be
+    used, because a fade-in is a convention of edited video, not an edge case.
+    """
+    from src.dashboard.app import WELL_LIT_MEAN, grab_first_frame
+
+    clip = _fade_in_clip(tmp_path / "fade.mp4")
+    assert float(grab_first_frame(str(clip)).mean()) >= WELL_LIT_MEAN
+
+
+def test_a_clip_that_is_black_throughout_still_returns_a_frame(tmp_path):
+    """No usable frame is a reason to show the best one, never to refuse the source."""
+    from src.dashboard.app import grab_first_frame
+
+    clip = _fade_in_clip(tmp_path / "dark.mp4", blank_frames=120)
+    assert grab_first_frame(str(clip)) is not None
+
+
 def test_available_models_reads_run_ids(tmp_path):
     for run_id in ("X04-y8n-s0-sh17", "X04-y11n-s2-chv"):
         weights = tmp_path / run_id / "weights"
@@ -62,8 +97,10 @@ def test_available_models_reads_run_ids(tmp_path):
 
     models = available_models(tmp_path)
     labels = {model["run_id"]: model["label"] for model in models}
-    assert labels["X04-y8n-s0-sh17"] == "y8n · seed 0 · trained on SH17"
-    assert labels["X04-y11n-s2-chv"] == "y11n · seed 2 · trained on CHV"
+    # Model, seed and training set, in the order the run-IDs already use. Kept short because
+    # the option text carries a "recommended" marker after it and the picker is one column wide.
+    assert labels["X04-y8n-s0-sh17"] == "y8n · seed 0 · SH17"
+    assert labels["X04-y11n-s2-chv"] == "y11n · seed 2 · CHV"
     # The demo's agreed detector is pre-selected, so the console cannot quietly open on a
     # checkpoint the dissertation does not report.
     assert [m["run_id"] for m in models if m["recommended"]] == ["X04-y8n-s0-sh17"]

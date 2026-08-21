@@ -77,7 +77,11 @@ function showSource(info, keepZone = false) {
   // A new source invalidates the polygon drawn over the old one; returning to the editor
   // after a run must not.
   if (!keepZone) state.points = [];
-  $('source-label').textContent = info.label;
+  // A clip is named by its file, not by where this machine happened to put it: the full
+  // upload path is this laptop's business, and it crowds out the name in a screenshot.
+  $('source-label').textContent = info.kind === 'file'
+    ? info.label.replace(/^file:/, '').split(/[\\/]/).pop()
+    : info.label;
   $('fact-res').textContent = `${info.width} × ${info.height}`;
   $('fact-fps').textContent = `${info.fps} fps`;
   $('fact-len').textContent = info.duration ? `${info.duration} s (${info.frames} frames)` : 'live';
@@ -98,7 +102,6 @@ function showSource(info, keepZone = false) {
 function showEditor() {
   $('live').classList.add('hidden');
   $('canvas-wrap').classList.remove('hidden');
-  $('banner').classList.add('hidden');
   resizeCanvas();
 }
 
@@ -306,13 +309,9 @@ setInterval(async () => {
   $('kpi-breach').textContent = status.in_breach;
   $('kpi-fps').textContent = status.latency?.median_fps ? status.latency.median_fps.toFixed(1) : '—';
 
-  const banner = $('banner');
-  if (status.in_breach > 0 && status.running) {
-    banner.textContent = `${status.in_breach} ${status.in_breach === 1 ? 'person' : 'people'} in the zone without required PPE`;
-    banner.classList.remove('hidden');
-  } else {
-    banner.classList.add('hidden');
-  }
+  // No breach banner here. The frame draws its own, naming who is in breach and what each of
+  // them is missing, and it travels with the evidence frames and the recording. A second one
+  // laid over the top said less and hid the first.
 
   addRows(status.violations);
 
