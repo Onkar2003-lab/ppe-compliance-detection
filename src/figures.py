@@ -201,27 +201,52 @@ def fig_forest(stats: dict, out: Path) -> str:
 # ----------------------------------------------------------------------- 3 · CD diagram
 
 
+def _holm(pvals: list[float]) -> list[float]:
+    """Holm step-down adjusted p-values, returned in the original order.
+
+    The five omnibus Friedman tests are one family of hypotheses (does the architecture
+    move *any* axis?), so their p-values are corrected for multiple comparisons before a
+    single axis is called significant. Without this, running five tests inflates the chance
+    that one crosses 0.05 by luck alone — which is exactly what happens here to the in-domain
+    axis (raw 0.0302, adjusted 0.151). See Results Table 6.3.
+    """
+    m = len(pvals)
+    order = sorted(range(m), key=lambda i: pvals[i])
+    adj = [0.0] * m
+    running = 0.0
+    for rank, idx in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * pvals[idx]))  # monotone non-decreasing
+        adj[idx] = running
+    return adj
+
+
 def fig_cd_diagram(stats: dict, out: Path) -> str:
     """Critical-difference diagram (Friedman/Nemenyi) for every metric tested.
 
     The standard object for comparing several models over several conditions. Models joined
-    by a bar are *not* separated at the critical difference; the reader sees the null
-    directly rather than being told about it.
+    by a bar are *not* separated; the reader sees the null directly rather than being told
+    about it. The omnibus Friedman p is Holm-corrected across the five metrics, and the
+    verdict (and the bars) follow the corrected result: because no omnibus survives the
+    correction, no pairwise separation is interpreted and all three models are joined on
+    every panel. The raw p is still printed beside the adjusted one for transparency.
     """
     metrics = [
         (label, block) for label, block in stats.items() if "error" not in block["friedman_nemenyi"]
     ]
+    raw_p = [block["friedman_nemenyi"]["p_value"] for _, block in metrics]
+    adj_p = _holm(raw_p)
 
     fig, axes = plt.subplots(
         len(metrics), 1, figsize=(7.0, 1.35 * len(metrics) + 0.8), constrained_layout=True
     )
     axes = np.atleast_1d(axes)
 
-    for ax, (label, block) in zip(axes, metrics):
+    for ax, (label, block), praw, padj in zip(axes, metrics, raw_p, adj_p):
         friedman = block["friedman_nemenyi"]
         ranks = friedman["mean_ranks"]
         cd = friedman.get("critical_difference")
         low, high = 1.0, float(len(ranks))
+        corrected_sig = padj < 0.05
 
         ax.set_xlim(low - 0.25, high + 0.25)
         ax.set_ylim(-1.75, 0.85)
@@ -258,14 +283,13 @@ def fig_cd_diagram(stats: dict, out: Path) -> str:
             )
             previous = rank
 
-        # A bar spans models whose mean ranks sit within the critical difference.
-        if cd:
-            ordered = sorted(ranks.items(), key=lambda kv: kv[1])
-            # Start the connecting bars below the deepest staggered label, not at a fixed
-            # depth, or a three-way stagger would run straight through them.
-            # Below the DEEPEST label, not the last one drawn: a tie early in the rank
-            # order leaves `depth` back at 0, which put the bar through a label.
-            level = -0.20 - step * deepest - 0.38
+        # Below the DEEPEST label, not the last one drawn: a tie early in the rank order
+        # leaves `depth` back at 0, which put the bar through a label.
+        ordered = sorted(ranks.items(), key=lambda kv: kv[1])
+        level = -0.20 - step * deepest - 0.38
+        if corrected_sig and cd:
+            # A surviving omnibus: draw the standard Nemenyi bars spanning models whose
+            # mean ranks sit within the critical difference.
             drawn: list[tuple[float, float]] = []
             for i in range(len(ordered)):
                 j = i
@@ -281,27 +305,33 @@ def fig_cd_diagram(stats: dict, out: Path) -> str:
                     )
                     drawn.append((ordered[i][1], ordered[j][1]))
                     level -= 0.20
+        else:
+            # No omnibus survives the multi-metric correction, so no pairwise separation is
+            # interpreted: all three models are joined by one bar.
+            ax.plot(
+                [ordered[0][1] - 0.03, ordered[-1][1] + 0.03],
+                [level, level],
+                color=INK,
+                lw=3.0,
+                solid_capstyle="round",
+            )
+        if cd:
             ax.text(
-                high + 0.20,
-                -0.28,
-                f"CD = {cd:g}",
-                ha="right",
-                va="center",
-                fontsize=7,
-                color=MUTED,
+                high + 0.20, -0.28, f"CD = {cd:g}", ha="right", va="center", fontsize=7, color=MUTED
             )
 
-        verdict = "separated" if friedman["significant_at_05"] else "no difference detected"
+        verdict = "separated" if corrected_sig else "no difference detected"
         ax.set_title(
-            f"{label}  —  Friedman p = {friedman['p_value']:.4f} ({verdict})",
+            f"{label}  —  Friedman p = {praw:.4f} → Holm p = {padj:.3f} ({verdict})",
             fontsize=9,
             loc="left",
             color=INK,
         )
 
     fig.suptitle(
-        "Critical-difference diagrams: models joined by a bar are not distinguishable",
-        fontsize=10,
+        "Critical-difference diagrams (Friedman p Holm-corrected across the five metrics): "
+        "models joined by a bar are not distinguishable",
+        fontsize=9.5,
         color=INK,
     )
     return save(fig, out, "X05-fig3-cd-diagram")
