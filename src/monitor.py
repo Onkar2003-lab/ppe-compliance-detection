@@ -431,6 +431,42 @@ def write_log(violations: list[Violation], path: Path) -> None:
     logger.info("violation log: %s (%d rows)", path, len(violations))
 
 
+def boxes_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """Whether two ``(x1, y1, x2, y2)`` rectangles share any area."""
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def place_label(
+    top_left: tuple[int, int],
+    bottom_right: tuple[int, int],
+    text_size: tuple[int, int],
+    taken: list[tuple[int, int, int, int]],
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    """Find a spot for one label: inside the frame, and clear of the labels already placed.
+
+    Workers stand shoulder to shoulder on a site, so their labels want the same few pixels. The
+    first choice is the usual one, just above the box. If that spot is taken the label steps
+    inside the box, then upwards, then below the box, and settles on the first free position.
+
+    The frame is the only place a verdict is reported, so a label buried under another label is
+    the same failure as one running off the edge: it names a worker and says nothing about them.
+    """
+    tw, th = text_size
+    x = min(max(4, top_left[0]), max(4, width - tw - 10))
+    step = th + 12
+    candidates = [max(th + 8, top_left[1] - 8), min(height - 6, top_left[1] + step)]
+    candidates += [max(th + 8, top_left[1] - 8 - k * step) for k in range(1, 4)]
+    candidates.append(min(height - 6, bottom_right[1] + step))
+
+    for y in candidates:
+        rect = (x - 4, y - th - 6, x + tw + 6, y + 6)
+        if not any(boxes_overlap(rect, other) for other in taken):
+            return x, y
+    return x, candidates[0]  # every spot is contested; the default at least sits by its box
+
+
 def draw_overlay(
     frame,
     zone: Zone | None,
@@ -464,6 +500,7 @@ def draw_overlay(
         cv2.polylines(canvas, [points], True, ZONE_COLOUR, thick)
 
     by_index = {view.index: view for view in views}
+    pending: list[tuple[int, tuple[int, int], tuple[int, int], str, tuple[int, int, int]]] = []
     for person in people:
         view = by_index.get(person.index)
         if view is None:
@@ -471,12 +508,13 @@ def draw_overlay(
         if not view.in_zone:
             # One word: a crowd standing outside the zone produces a row of these, and the
             # legend already says what "outside" means.
-            colour, label = OUTSIDE_COLOUR, "outside"
+            colour, label, rank = OUTSIDE_COLOUR, "outside", 2
         elif view.in_breach:
             colour = VIOLATION_COLOUR
             label = "no " + " or ".join(CLASS_NAMES[c] for c in view.missing)
+            rank = 0
         else:
-            colour, label = COMPLIANT_COLOUR, "compliant"
+            colour, label, rank = COMPLIANT_COLOUR, "compliant", 1
 
         x1, y1, x2, y2 = person.box.corners
         top_left = (int(x1 * width), int(y1 * height))
@@ -485,12 +523,21 @@ def draw_overlay(
         cv2.rectangle(canvas, top_left, bottom_right, colour, thick if view.in_zone else 1)
 
         text = f"#{view.track_id if view.track_id is not None else '?'} {label}"
+        pending.append((rank, top_left, bottom_right, text, colour))
+
+    # Every box is drawn before any label, and the labels go down in order of what they report:
+    # a breach first, then a compliant verdict, then "outside". Placing each label as its box was
+    # drawn let a grey label from the far side of the site land on top of a red one, so whichever
+    # worker happened to be detected later won the pixels rather than whichever mattered more.
+    taken: list[tuple[int, int, int, int]] = []
+    for _, top_left, bottom_right, text, colour in sorted(pending, key=lambda item: item[0]):
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
-        # Held inside the frame on both axes. A worker at the right-hand edge is exactly the
-        # one whose verdict runs off the picture, and a label that reads "#785 outsi" says
-        # nothing at all — least of all in a figure, where there is no scrolling to reveal it.
-        anchor_x = min(max(4, top_left[0]), max(4, width - tw - 10))
-        anchor = (anchor_x, max(th + 8, top_left[1] - 8))
+        # Held inside the frame on both axes and clear of the labels already placed. A worker at
+        # the right-hand edge is exactly the one whose verdict runs off the picture, and a label
+        # reading "#785 outsi" or half-hidden under its neighbour says nothing at all: least of
+        # all in a figure, where there is no scrolling to reveal it.
+        anchor = place_label(top_left, bottom_right, (tw, th), taken, width, height)
+        taken.append((anchor[0] - 4, anchor[1] - th - 6, anchor[0] + tw + 6, anchor[1] + 6))
         # Text over a busy site photograph is unreadable without something behind it.
         cv2.rectangle(
             canvas,

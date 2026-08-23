@@ -348,3 +348,39 @@ def test_the_banner_caps_the_names_and_keeps_the_count():
     assert line.startswith("6 in breach:")
     assert line.endswith("+3 more")
     assert "no helmet or vest" in line
+
+
+def test_a_label_steps_aside_rather_than_landing_on_one_already_placed():
+    """Workers stand shoulder to shoulder, so their labels contend for the same pixels."""
+    from src.monitor import boxes_overlap, place_label
+
+    size = (180, 20)
+    first = place_label((400, 300), (500, 700), size, [], 1920, 1080)
+    taken = [(first[0] - 4, first[1] - size[1] - 6, first[0] + size[0] + 6, first[1] + 6)]
+
+    # A second worker standing right beside the first wants the same spot.
+    second = place_label((410, 300), (510, 700), size, taken, 1920, 1080)
+    second_rect = (second[0] - 4, second[1] - size[1] - 6, second[0] + size[0] + 6, second[1] + 6)
+    assert not boxes_overlap(second_rect, taken[0])
+
+
+def test_an_uncontested_label_keeps_its_usual_spot_above_the_box():
+    from src.monitor import place_label
+
+    assert place_label((400, 300), (500, 700), (180, 20), [], 1920, 1080) == (400, 292)
+
+
+def test_a_label_is_held_inside_the_frame_on_both_axes():
+    """A worker at the right-hand edge is exactly the one whose verdict runs off the picture."""
+    from src.monitor import place_label
+
+    x, y = place_label((1900, 4), (1919, 400), (180, 20), [], 1920, 1080)
+    assert x + 180 <= 1920
+    assert y - 20 >= 0
+
+
+def test_boxes_overlap_is_false_when_rectangles_only_touch():
+    from src.monitor import boxes_overlap
+
+    assert not boxes_overlap((0, 0, 10, 10), (10, 0, 20, 10))
+    assert boxes_overlap((0, 0, 10, 10), (9, 9, 20, 20))
