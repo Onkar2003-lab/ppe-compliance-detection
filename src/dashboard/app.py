@@ -2,7 +2,7 @@
 
 The demonstration answers to a supervisor, not to a command line, so it needs a console: drop
 in footage or point at a camera, mark the area where PPE is mandatory, and watch violations
-appear with the evidence attached. That is what this serves — a local web page, no cloud, no
+appear with the evidence attached. That is what this serves: a local web page, no cloud, no
 account, nothing leaving the machine.
 
 **It drives the same loop as everything else.** The page does not re-implement detection,
@@ -11,7 +11,7 @@ A second copy of that loop is precisely how a dashboard ends up quietly disagree
 numbers the dissertation reports, so there isn't one.
 
 **Three sources, one abstraction.** An uploaded video file (reproducible, the default), a local
-webcam by index, or a stream URL — an RTSP/MJPEG address, which is how a phone becomes a camera
+webcam by index, or a stream URL, an RTSP/MJPEG address, which is how a phone becomes a camera
 and how a real site's IP cameras would be reached. They all resolve through
 :func:`src.monitor.resolve_source`, so the demonstration claims nothing about the hardware
 behind the lens.
@@ -107,8 +107,8 @@ SAMPLE_EVERY = 3  # decode every third frame; advancing is cheap, decoding is no
 def grab_first_frame(source_spec: str):
     """Read one *usable* frame from any source, for the zone editor to draw on.
 
-    Not simply the first frame that decodes. Footage often opens on black — a clip that fades
-    in, a webcam still exposing — and handing that to the zone editor asks the operator to mark
+    Not simply the first frame that decodes. Footage often opens on black (a clip that fades
+    in, a webcam still exposing), and handing that to the zone editor asks the operator to mark
     a safety zone on an empty rectangle, with no idea where the site actually is.
 
     "Not black" is too weak a test: two frames into a fade the picture is technically not blank
@@ -153,12 +153,14 @@ def grab_first_frame(source_spec: str):
     if best is None:
         raise RuntimeError(f"could not read a frame from {source_spec}")
     if best_mean < WELL_LIT_MEAN:
-        logger.info("%s never brightens; showing its best frame (mean %.1f)", source_spec, best_mean)
+        logger.info(
+            "%s never brightens; showing its best frame (mean %.1f)", source_spec, best_mean
+        )
     return best
 
 
 def describe_source(source_spec: str, frame) -> dict:
-    """Resolution, frame rate and length, for the header — and for honest timing later."""
+    """Resolution, frame rate and length, for the header, and for honest timing later."""
     import cv2
 
     source = resolve_source(source_spec)
@@ -265,7 +267,7 @@ def create_app(workdir: Path = DEFAULT_WORKDIR, runs: Path = DEFAULT_RUNS) -> Fl
     def set_source():
         """Accept an uploaded file, a camera index or a stream URL, and return frame one."""
         if session.running:
-            return jsonify({"error": "a run is in progress — stop it first"}), 409
+            return jsonify({"error": "a run is in progress; stop it first"}), 409
 
         if "file" in request.files:
             upload = request.files["file"]
@@ -283,7 +285,7 @@ def create_app(workdir: Path = DEFAULT_WORKDIR, runs: Path = DEFAULT_RUNS) -> Fl
         try:
             frame = grab_first_frame(spec)
             info = describe_source(spec, frame)
-        except Exception as exc:  # noqa: BLE001 — a bad URL is the user's mistake, not a 500
+        except Exception as exc:  # noqa: BLE001 (a bad URL is the user's mistake, not a 500)
             logger.warning("source rejected: %s (%s)", spec, exc)
             return jsonify({"error": f"could not open that source: {exc}"}), 400
 
@@ -393,7 +395,7 @@ def create_app(workdir: Path = DEFAULT_WORKDIR, runs: Path = DEFAULT_RUNS) -> Fl
 
     @app.get("/api/stream")
     def stream():
-        """MJPEG of the annotated frames — the live view."""
+        """MJPEG of the annotated frames: the live view."""
 
         def frames():
             blank = session.first_frame_jpeg or b""
@@ -427,7 +429,7 @@ def create_app(workdir: Path = DEFAULT_WORKDIR, runs: Path = DEFAULT_RUNS) -> Fl
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Zone compliance monitor — dashboard (O6).")
+    parser = argparse.ArgumentParser(description="Zone compliance monitor, dashboard (O6).")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
@@ -435,7 +437,7 @@ def main() -> int:
     args = parser.parse_args()
 
     app = create_app(args.workdir, args.runs)
-    logger.info("dashboard on http://%s:%d — press Ctrl+C to stop", args.host, args.port)
+    logger.info("dashboard on http://%s:%d, press Ctrl+C to stop", args.host, args.port)
     app.run(host=args.host, port=args.port, threaded=True, debug=False)
     return 0
 

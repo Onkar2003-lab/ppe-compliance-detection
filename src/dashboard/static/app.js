@@ -48,7 +48,7 @@ document.querySelectorAll('.step-head').forEach((head) => {
   });
 });
 
-/** Area of the normalised polygon, as a percentage of the frame — the shoelace formula. */
+/** Area of the normalised polygon, as a percentage of the frame, by the shoelace formula. */
 function zoneArea(points) {
   let sum = 0;
   for (let i = 0; i < points.length; i += 1) {
@@ -226,7 +226,7 @@ canvas.addEventListener('mousemove', (event) => {
     const to = pointAt(event);
     const box = corners(dragFrom, to);
     dragFrom = null;
-    // A click with no real drag is not a zone — it would be an invisible sliver nobody meant.
+    // A click with no real drag is not a zone; it would be an invisible sliver nobody meant.
     const wide = Math.abs(to[0] - box[0][0]) > MIN_DRAG;
     const tall = Math.abs(to[1] - box[0][1]) > MIN_DRAG;
     state.points = wide && tall ? box : [];
@@ -253,9 +253,9 @@ $('zone-clear').addEventListener('click', () => { state.points = []; drawZone();
 function drawZone(preview) {
   const points = preview || state.points;
   $('zone-status').textContent = points.length
-    ? (state.mode === 'rect' ? 'Zone set — drag again to replace it.'
-                             : `${points.length} corners placed — three or more makes a zone.`)
-    : 'No zone — watching the whole frame.';
+    ? (state.mode === 'rect' ? 'Zone set. Drag again to replace it.'
+                             : `${points.length} corners placed. Three or more makes a zone.`)
+    : 'No zone set. The whole frame is watched.';
 
   // Only a finished polygon counts, and the summary is its share of the frame: "38% of frame"
   // says what was marked, where "4 points" only says something was.
@@ -308,7 +308,7 @@ $('start').addEventListener('click', async () => {
   if ($('req-vest').checked) required.push('vest');
   if (!required.length) return say('Require at least one item of PPE.', true);
   if (state.points.length && state.points.length < 3) {
-    return say('A zone needs three points or more — or clear it to watch the whole frame.', true);
+    return say('A zone needs three points or more, or clear it to watch the whole frame.', true);
   }
 
   const response = await fetch('/api/start', {
@@ -372,7 +372,7 @@ setInterval(async () => {
   $('kpi-alerts').textContent = status.alerts.toLocaleString();
   $('kpi-breach').textContent = status.in_breach;
   $('kpi-breach-tile').classList.toggle('live', status.in_breach > 0 && status.running);
-  $('kpi-fps').textContent = status.latency?.median_fps ? status.latency.median_fps.toFixed(1) : '—';
+  $('kpi-fps').textContent = status.latency?.median_fps ? status.latency.median_fps.toFixed(1) : '-';
 
   // No breach banner here. The frame draws its own, naming who is in breach and what each of
   // them is missing, and it travels with the evidence frames and the recording. A second one
@@ -415,7 +415,7 @@ function addRows(violations) {
       <td class="missing">${escapeHtml(violation.missing_ppe)}</td>
       <td class="mono">${violation.dwell_seconds.toFixed(1)} s</td>
       <td>${snapshot ? `<a href="/api/snapshot/${encodeURIComponent(snapshot)}" target="_blank">
-            <img src="/api/snapshot/${encodeURIComponent(snapshot)}" alt="Evidence frame"></a>` : '—'}</td>`;
+            <img src="/api/snapshot/${encodeURIComponent(snapshot)}" alt="Evidence frame"></a>` : '-'}</td>`;
     body.prepend(row);
   });
 }

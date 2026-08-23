@@ -134,9 +134,9 @@
         </div>
 
         <dl id="source-facts" class="facts hidden">
-          <div><dt>Resolution</dt><dd id="fact-res">—</dd></div>
-          <div><dt>Frame rate</dt><dd id="fact-fps">—</dd></div>
-          <div><dt>Length</dt><dd id="fact-len">—</dd></div>
+          <div><dt>Resolution</dt><dd id="fact-res">-</dd></div>
+          <div><dt>Frame rate</dt><dd id="fact-fps">-</dd></div>
+          <div><dt>Length</dt><dd id="fact-len">-</dd></div>
         </dl>
       </div>
     </section>
@@ -164,7 +164,7 @@
           <button type="button" class="secondary" id="zone-undo">Undo point</button>
           <button type="button" class="secondary" id="zone-clear">Clear</button>
         </div>
-        <p class="meta"><span id="zone-status">No zone — watching the whole frame.</span></p>
+        <p class="meta"><span id="zone-status">No zone set. The whole frame is watched.</span></p>
       </div>
     </section>
 
@@ -217,7 +217,7 @@
             <select id="model">
               {% for model in models %}
                 <option value="{{ model.value }}" {% if model.recommended %}selected{% endif %}>
-                  {{ model.label }}{% if model.recommended %} — recommended{% endif %}
+                  {{ model.label }}{% if model.recommended %} (recommended){% endif %}
                 </option>
               {% endfor %}
             </select>
@@ -225,7 +225,7 @@
             <label for="device">Run on</label>
             <select id="device">
               <option value="">Graphics card</option>
-              <option value="cpu">Processor only — a site box with no graphics card</option>
+              <option value="cpu">Processor only (a site box with no graphics card)</option>
             </select>
           </div>
         </details>
@@ -244,7 +244,7 @@
     <div class="kpis">
       <div class="kpi">
         <span class="kpi-label"><svg><use href="#i-gauge"/></svg>Throughput</span>
-        <span class="kpi-figure"><span class="kpi-value" id="kpi-fps">—</span><span class="kpi-unit">fps</span></span>
+        <span class="kpi-figure"><span class="kpi-value" id="kpi-fps">-</span><span class="kpi-unit">fps</span></span>
       </div>
       <div class="kpi">
         <span class="kpi-label"><svg><use href="#i-frames"/></svg>Frames</span>
@@ -298,7 +298,7 @@
     <p class="disclaimer">
       <svg class="h-ico"><use href="#i-shield"/></svg>Compliance is <em>derived</em>: the detector emits person, helmet and vest only, and a
       calibrated association rule decides what each person is wearing. Track numbers are
-      per-session counters, not identities — no recognition, no biometrics, nothing stored beyond
+      per-session counters, not identities. There is no recognition, no biometrics, and nothing stored beyond
       this run's log and evidence frames.
     </p>
   </section>

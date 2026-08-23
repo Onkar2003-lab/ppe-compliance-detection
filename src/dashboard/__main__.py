@@ -1,4 +1,4 @@
-"""``python -m src.dashboard`` — start the demonstration's console."""
+"""``python -m src.dashboard``, start the demonstration's console."""
 
 from src.dashboard.app import main
 
