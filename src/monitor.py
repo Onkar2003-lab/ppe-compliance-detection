@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -223,8 +224,11 @@ def frames_from(source: Source, limit: int | None = None):
 
     handle = source.handle if source.kind == "camera" else str(source.handle)
     capture = cv2.VideoCapture(handle)
-    index = 0
     try:
+        if source.live:
+            yield from newest_frames(capture, limit)
+            return
+        index = 0
         while True:
             if limit is not None and index >= limit:
                 return
@@ -235,6 +239,60 @@ def frames_from(source: Source, limit: int | None = None):
             index += 1
     finally:
         capture.release()
+
+
+def newest_frames(capture, limit: int | None = None):
+    """Yield the *most recent* frame from a live source, discarding any that queued behind it.
+
+    A recorded file is read frame by frame because every frame is part of the record, and
+    skipping one would change the timing the results chapter reports. A camera is the opposite
+    case: it pushes frames whether or not anything is ready for them, so when the pipeline runs
+    slower than the sensor delivers — 19.6 fps against 25 on the phone used for S6.8 — the
+    surplus accumulates in the decoder's queue and the operator watches a picture that falls
+    further behind the site every second. The alert is still correct; it is simply late, and a
+    compliance alert that arrives a minute after the worker left the zone is worthless.
+
+    So a reader thread drains the capture continuously and keeps only the latest frame, and the
+    monitor always works on that. Lag stays bounded at roughly one frame regardless of how long
+    the run lasts. The cost is honest and worth stating: frames nobody could have processed in
+    time are dropped, so ``Summary.frames`` counts frames *processed*, not frames the camera
+    sent, and the throughput figure is the rate the pipeline sustained, not the sensor's rate.
+    """
+    latest: list = [None]  # (sequence, frame), newest only
+    stopped = threading.Event()
+    lock = threading.Lock()
+
+    def pump() -> None:
+        sequence = 0
+        while not stopped.is_set():
+            ok, frame = capture.read()
+            if not ok:
+                stopped.set()
+                return
+            sequence += 1
+            with lock:
+                latest[0] = (sequence, frame)
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+
+    index = 0
+    seen = 0
+    try:
+        while not stopped.is_set():
+            if limit is not None and index >= limit:
+                return
+            with lock:
+                current = latest[0]
+            if current is None or current[0] == seen:
+                time.sleep(0.002)  # nothing new yet; the sensor sets the pace here
+                continue
+            seen, frame = current
+            yield index, frame
+            index += 1
+    finally:
+        stopped.set()
+        reader.join(timeout=2.0)
 
 
 def source_fps(source: Source, override: float | None = None) -> float:
