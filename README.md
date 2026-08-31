@@ -1,9 +1,51 @@
 # PPE-Compliance Detection: Benchmark & Deployment-Readiness Study
 
+![licence](https://img.shields.io/badge/licence-MIT-blue)
+![python](https://img.shields.io/badge/python-3.13-blue)
+![tests](https://img.shields.io/badge/tests-213%20passing-brightgreen)
+![results](https://img.shields.io/badge/results-v1.0--results-informational)
+
 Reproducible code for an MSc dissertation: benchmarking three YOLO generations
 (**YOLOv8 · YOLO11 · YOLO26**) for PPE-compliance detection on a four-axis
 **deployment-readiness** framework, with a cross-dataset (SH17 ↔ CHV) transfer study and a
 real-time zone-compliance demonstration.
+
+## The finding, in one paragraph
+
+**The architecture did not decide the outcome. The dataset did.** Across 18 training runs
+(3 architectures × 3 seeds × 2 directions), no difference between the three architectures
+survives family-wise correction on any of the five measured axes. That is reported as a
+bounded equivalence rather than a bare null: against a margin of 0.05 mAP fixed in advance,
+every pairwise model-difference interval falls inside it (widest 0.044). The cross-dataset
+shift, by contrast, moves the score by roughly 0.22 mAP. Picking the newer detector is not
+what makes a PPE system deployable; surviving the domain change is.
+
+## Quickstart
+
+```powershell
+git clone https://github.com/Onkar2003-lab/ppe-compliance-detection
+cd ppe-compliance-detection
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.lock
+python -m pytest -q
+```
+
+The suite runs on a clean clone with **no GPU, no datasets and no weights**: the logic that
+decides a claim is tested against fixtures. One test skips without the dHash cache from §2
+(it is a regression guard on the real splits), so a bare clone reports 212 passed, 1 skipped.
+Reproducing a *reported number* additionally needs the datasets (§2) and a trained run (§4);
+§5 shows the verification that was actually performed.
+
+## Two tags
+
+| Tag | What it pins |
+|---|---|
+| `v1.0-results` | The state every **reported benchmark number** was produced at. Cite this one. |
+| `v1.1-demo` | The **demonstration** state described in the dissertation's implementation chapter: the console and overlay fixes, live-source frame freshness, and the ROC / PR / calibration sweep. |
+
+`main` moves on past both. For anything cited in the dissertation, check out the tag.
 
 Every number in the dissertation is produced by a command in this repository. §5 maps each
 reported result to the command that regenerates it; §4 maps each run-ID to its frozen config
@@ -31,7 +73,7 @@ code/
     verify_env.py        ← GPU / CUDA / dataset sanity check (run this first)
     make_demo_clip.py    ← renders stills into a clip, for latency measurement only
   src/                   ← the pipeline (§3)
-  tests/                 ← 193 tests; the logic that decides a claim is tested, not sampled
+  tests/                 ← 213 tests; the logic that decides a claim is tested, not sampled
   notebooks/             ← jupytext-paired exploration (outputs stripped)
 ```
 
@@ -281,8 +323,9 @@ non-deterministic on this hardware, so a retrained run would land near its origi
   test. **No "X beats Y" without the test**: exact paired sign-flip for pairwise comparisons,
   Friedman with Nemenyi post-hoc across models.
 - Pictor-PPE is evaluation-only, enforced in `src/guards.py`.
-- `pytest` before any push: **193 tests** in this released checkout, `ruff` and `black` clean (line
-  width 100, pinned in `pyproject.toml`). The development tree runs 207: the extra 14 cover
+- `pytest` before any push: **213 tests** on `main`, `ruff` and `black` clean (line
+  width 100, pinned in `pyproject.toml`). The `v1.0-results` checkout carries 193, the count
+  quoted in the dissertation. The development tree runs 227: the extra 14 cover
   `src/keepawake.py`, which holds this particular laptop out of Modern Standby during a long
   training queue. It guards one machine's power behaviour rather than the method, so it is
   deliberately not released; `src/grid.py` imports it inside a `try`/`except` and runs without it.
@@ -294,5 +337,15 @@ here and keep their own terms: SH17 is CC BY-NC-SA 4.0; CHV and Pictor-PPE are g
 respective sources (§2.1). Trained weights are not distributed either; they are regenerable from
 the frozen configs.
 
-If this code is useful, please cite the dissertation (MSc, WMG, University of Warwick, 2026) and
-the originating dataset papers.
+If this code is useful, please cite the dissertation and the originating dataset papers:
+
+```bibtex
+@mastersthesis{gupta2026ppe,
+  author = {Gupta, Onkar},
+  title  = {Benchmarking Modern Object Detectors for PPE-Compliance Detection:
+            a deployment-readiness framework and cross-dataset generalisation study},
+  school = {WMG, University of Warwick},
+  year   = {2026},
+  note   = {Code: https://github.com/Onkar2003-lab/ppe-compliance-detection, tag v1.0-results}
+}
+```
