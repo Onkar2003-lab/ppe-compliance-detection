@@ -1,6 +1,6 @@
 """Tests for the dashboard's own logic and its refusals.
 
-The page mostly delegates — detection, association, zone and dwell all live in modules with
+The page mostly delegates: detection, association, zone and dwell all live in modules with
 their own tests, and that is the point of it. What is tested here is what the server decides
 by itself: how it reads the weights on disk, and that it refuses a run it cannot honestly
 perform rather than starting one and failing halfway.

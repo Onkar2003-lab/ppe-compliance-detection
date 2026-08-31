@@ -38,7 +38,7 @@ def test_every_run_id_is_unique():
 
 
 def test_ordering_is_seed_major():
-    """Each seed block must be complete before the next starts — the whole point of the order.
+    """Each seed block must be complete before the next starts: the whole point of the order.
 
     Seed-major means an interruption costs CI width, not the comparison itself.
     """
@@ -87,7 +87,7 @@ def test_config_points_at_the_preresized_data():
 
 
 def test_disk_cache_is_off_everywhere():
-    """cache='disk' was the original bottleneck (F21) — it must not creep back in."""
+    """cache='disk' was the original bottleneck (F21); it must not creep back in."""
     assert all(config_for(run)["cache"] is False for run in grid())
 
 
@@ -126,7 +126,7 @@ def test_run_with_a_checkpoint_but_no_summary_is_resumable(run_dir: Path):
 
 
 def test_run_with_a_summary_is_done_and_gets_skipped(run_dir: Path):
-    """Re-invoking the queue must be idempotent — finished work is never repeated."""
+    """Re-invoking the queue must be idempotent: finished work is never repeated."""
     run = Run("y8n", 0, "sh17")
     run.run_dir.mkdir(parents=True)
     run.summary.write_text(json.dumps({"run_id": run.run_id}), encoding="utf-8")

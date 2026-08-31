@@ -1,4 +1,4 @@
-"""S6.5 — evaluating the demo: does it alert on the right people, inside the zone?
+"""S6.5: evaluating the demo. Does it alert on the right people, inside the zone?
 
 The build plan originally asked for "alert accuracy against a labelled test clip". No such
 clip exists. There is no site video annotated with a zone and per-worker compliance, hand
@@ -6,11 +6,11 @@ labelling one costs days the calendar has not got, and inventing one would be fa
 evidence. The evaluation is therefore split into the three things that *can* be measured
 honestly, and this module is the third:
 
-1. **Latency** — measured by the demo itself (``src.monitor`` writes ``demo-metrics.json``).
-2. **Zone, dwell and debounce logic** — proven *exactly* by ``tests/test_zone.py`` and
+1. **Latency**: measured by the demo itself (``src.monitor`` writes ``demo-metrics.json``).
+2. **Zone, dwell and debounce logic**: proven *exactly* by ``tests/test_zone.py`` and
    ``tests/test_dwell.py`` on synthetic geometry and scripted tracks. Pure logic with known
    answers is settled by test, not sampled; that is stronger than a small labelled clip.
-3. **Alert accuracy** — this module. Pictor-PPE labels every worker's position *and* their
+3. **Alert accuracy**: this module. Pictor-PPE labels every worker's position *and* their
    compliance state, so once a zone is drawn over the frame the correct alert set follows by
    construction: a worker standing inside it without the required PPE should raise an alert,
    and anyone else should not. Real ground truth, no hand labelling.
@@ -18,19 +18,19 @@ honestly, and this module is the third:
 **This is not a second measurement of detection accuracy.** That is the violation axis (F27),
 and it is already reported. What is new here is the *zone gate*: whether restricting attention
 to a marked area alerts on the right subset. The scoring machinery is deliberately imported
-from :mod:`src.violation` — the same ground truth, the same one-to-one IoU 0.5 matching, the
-same frozen confidence — so the two numbers are comparable rather than merely similar.
+from :mod:`src.violation`: the same ground truth, the same one-to-one IoU 0.5 matching, the
+same frozen confidence, so the two numbers are comparable rather than merely similar.
 
 **Several zones are scored, not one.** A single hand-placed polygon invites the suspicion that
 it was moved until the number improved, so the geometries are fixed in :data:`ZONES` before any
-of them is run, defined without reference to the labels, and reported together — including the
+of them is run, defined without reference to the labels, and reported together, including the
 whole frame, which is the no-zone control. Detections are computed once per image and reused
 for every zone, so the comparison is exactly like-for-like as well as cheap.
 
 **Alerting is scored per image, without the tracker.** Pictor's images are unrelated stills;
 ByteTrack only returns detections it has confirmed across consecutive frames, so running it
 here would withhold boxes and manufacture violations. Dwell and debounce are likewise
-meaningless between two unrelated photographs — they are what the unit tests cover.
+meaningless between two unrelated photographs; they are what the unit tests cover.
 
 **Helmet leads.** Only 41 of 2,497 workers wear a vest (1.6 %, X01/S1.1b F13), so a vest
 figure would say more about the base rate than the system. The required-PPE set is a flag, and
@@ -67,7 +67,7 @@ logger = get_logger(__name__)
 
 DEFAULT_OUT = Path("D:/runs/X06-demo-eval")
 
-# Fixed before any of them was scored, and defined by frame geometry alone — never by where
+# Fixed before any of them was scored, and defined by frame geometry alone, never by where
 # the workers happen to be. The whole frame is the control: it is the same pipeline with the
 # zone gate open, so the difference between it and the rest is what the zone layer does.
 ZONES: dict[str, Zone] = {
@@ -94,7 +94,7 @@ class AlertScore:
     fn: int = 0  # should have alerted and did not
     missed_people: int = 0  # of those misses, how many were never detected at all
     # False alerts are split by cause, because the two say different things about the system.
-    # One is the pipeline judging a real worker wrongly — the PPE was there and was not bound —
+    # One is the pipeline judging a real worker wrongly (the PPE was there and was not bound)
     # and is squarely the demo's fault. The other is an alert on a detection that matches no
     # labelled worker at all, which is a person-detection artefact and would be a false alarm
     # on site too, but is not the zone or association layer misbehaving.
@@ -114,7 +114,7 @@ class AlertScore:
     def precision_worker_level(self) -> float:
         """Precision counting only alerts on labelled workers.
 
-        The violation axis scores workers, not detections — a prediction matching no labelled
+        The violation axis scores workers, not detections; a prediction matching no labelled
         worker is invisible to it. This figure applies the same rule, so it is directly
         comparable with F27's helmet-violation precision, while :attr:`precision` above stays
         the stricter one a site would actually experience.
@@ -167,7 +167,7 @@ def alerts_for(
 ) -> tuple[list[int], list[int]]:
     """Which detected people the demo would alert on inside this zone.
 
-    Returns ``(person indices, alerting subset)`` — both indices into ``predictions`` — so the
+    Returns ``(person indices, alerting subset)``, both indices into ``predictions``, so the
     caller can match every detected person to a worker and still know which ones alerted.
     This runs the association rule over the *detections*, exactly as the demo does; the
     labelled worker boxes are never fed in, because a deployment is not handed them.
@@ -228,7 +228,7 @@ def score_image(
 
     # Alerts on detections that matched no labelled worker: a duplicated or spurious person
     # box, or somebody the labels do not carry. The site still gets an alert nobody should
-    # answer, so it counts against precision — but it is a detection artefact, not the zone
+    # answer, so it counts against precision, but it is a detection artefact, not the zone
     # or association layer, which is why it is counted separately.
     score.fp_unmatched += len(alerting_slots - matched_alerting)
 
@@ -272,7 +272,7 @@ def evaluate(
     for position, image in enumerate(names, start=1):
         path = next((p for p in images_dir.glob(f"{Path(image).stem}.*")), None)
         if path is None:
-            logger.warning("image not found for %s — skipped", image)
+            logger.warning("image not found for %s, skipped", image)
             continue
 
         # Detected once, scored by every zone: the zones then differ only in geometry, which
@@ -300,7 +300,7 @@ def build_report(evaluation: Evaluation) -> str:
     required = "+".join(CLASS_NAMES[cls] for cls in evaluation.required)
     control = evaluation.scores["whole-frame"]
     lines = [
-        "# X06 / S6.5 — demo alert accuracy on Pictor-PPE, by zone",
+        "# X06 / S6.5: demo alert accuracy on Pictor-PPE, by zone",
         "",
         (
             f"Weights `{evaluation.weights}` · confidence {evaluation.confidence} · "
@@ -336,7 +336,7 @@ def build_report(evaluation: Evaluation) -> str:
     ]
     for name in ZONES:
         s = evaluation.scores[name]
-        missed = f"{s.missed_people} of {s.fn}" if s.fn else "—"
+        missed = f"{s.missed_people} of {s.fn}" if s.fn else "-"
         lines.append(f"| {name} | {s.fp_compliant} | {s.fp_unmatched} | {missed} |")
 
     lines += [
@@ -346,7 +346,7 @@ def build_report(evaluation: Evaluation) -> str:
         (
             "It evidences the **zone gate**: given the detections the violation axis already "
             "reports, restricting attention to a marked area alerts on the right subset of "
-            "workers. It is **not** a second measurement of detection accuracy — the "
+            "workers. It is **not** a second measurement of detection accuracy; the "
             f"whole-frame control's recall of {control.recall:.3f} is governed by whether the "
             "detector finds the person at all, which F27 already established as this "
             "pipeline's weak link."
@@ -354,7 +354,7 @@ def build_report(evaluation: Evaluation) -> str:
         "",
         (
             "It does **not** evidence end-to-end accuracy on real site footage. No labelled "
-            "site video exists here, and none is claimed — a Discussion limitation stated "
+            "site video exists here, and none is claimed; a Discussion limitation stated "
             "plainly, alongside the nano-only and under-supervised-person limits. Dwell and "
             "debounce are not exercised here either: Pictor's images are unrelated stills with "
             "no elapsed time between them, so that logic is evidenced by unit test instead."
@@ -413,7 +413,7 @@ def main() -> int:
                     "match_iou": evaluation.match_iou,
                     "required_ppe": [CLASS_NAMES[c] for c in evaluation.required],
                     "association_threshold": "src.associate.THRESHOLD (SH17/CHV train only)",
-                    "tracking": "off — Pictor images are unrelated stills",
+                    "tracking": "off: Pictor images are unrelated stills",
                     "duplicate_suppression": "on" if evaluation.suppress_duplicates else "off",
                 },
                 "zones": {

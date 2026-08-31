@@ -1,4 +1,4 @@
-"""Environment sanity check — run BEFORE any training.
+"""Environment sanity check: run BEFORE any training.
 
 Confirms a CUDA-enabled PyTorch sees the RTX 4070 Laptop GPU, reports the exact versions
 to freeze into the vault (00-coding-context .2 + 00-Key-Facts), and asserts the dataset

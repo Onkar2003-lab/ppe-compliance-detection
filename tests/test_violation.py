@@ -1,7 +1,7 @@
 """Unit tests for the violation-recall axis (X05/S5).
 
-This module turns detections into the project's headline safety claim — *did we catch the
-worker with no helmet?* — so its scoring conventions are tested on synthetic scenes where
+This module turns detections into the project's headline safety claim: *did we catch the
+worker with no helmet?* Its scoring conventions are tested on synthetic scenes where
 the right answer is known by construction.
 
 The cases that matter most are the ones where a plausible-looking implementation would
@@ -34,7 +34,7 @@ def person(xc: float, yc: float = 0.5, w: float = 0.4, h: float = 0.8) -> Box:
 
 
 def helmet_on(p: Box) -> Box:
-    """A helmet sitting on this person's head — fully contained, so it binds."""
+    """A helmet sitting on this person's head, fully contained, so it binds."""
     _x1, y1, _x2, _y2 = p.corners
     return Box(HELMET, p.xc, y1 + 0.04, 0.08, 0.06)
 
@@ -166,7 +166,7 @@ def test_undetected_compliant_worker_is_correct_silence_not_a_false_alarm() -> N
 
 
 def test_helmet_on_the_ground_does_not_make_a_worker_compliant() -> None:
-    """Unbound PPE must not be credited to anybody — that would invent compliance."""
+    """Unbound PPE must not be credited to anybody; that would invent compliance."""
     p = person(0.2)
     stray = Box(HELMET, 0.85, 0.9, 0.08, 0.06)
     score = fresh()

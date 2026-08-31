@@ -1,8 +1,8 @@
-"""S6.1 — the safety zone: drawing it, storing it, and deciding who is standing in it (O6).
+"""S6.1 the safety zone: drawing it, storing it, and deciding who is standing in it (O6).
 
 The demonstration's premise is that a site manager marks the area where PPE is mandatory and
-the system watches *that area*, not the whole frame. Everything downstream — the dwell timer
-(S6.2), the alert and its log row (S6.3) — is gated on one question this module answers:
+the system watches *that area*, not the whole frame. Everything downstream, the dwell timer
+(S6.2), the alert and its log row (S6.3), is gated on one question this module answers:
 **is this person inside the zone?**
 
 Three decisions are worth stating, because each one changes the answer.
@@ -16,7 +16,7 @@ on load rather than trusted, because pixel coordinates read as normalised ones p
 worker outside the zone and would look like a quiet, plausible "no violations".
 
 **Membership is decided by the feet, not the centre.** A person is in the zone if the bottom
-centre of their box — where they stand — is inside the polygon. Using the box centre would put
+centre of their box (where they stand) is inside the polygon. Using the box centre would put
 a worker leaning over a barrier inside the restricted area while both feet are outside it, and
 would drag tall foreground figures in from the edge of the frame. The feet point is the
 standard ground-contact proxy for a monocular view; it is wrong when a worker is occluded from
@@ -62,7 +62,7 @@ class Zone:
     Attributes:
         name: Human label used in the alert banner and the log row ("loading-bay").
         points: Vertices in draw order, each ``(x, y)`` in ``[0, 1]``. Closing the ring is
-            implicit — the last vertex joins the first.
+            implicit: the last vertex joins the first.
         source: The video or image the polygon was drawn on, kept so a zone can be traced
             back to the frame that justified it.
         created: UTC timestamp of the drawing session.
@@ -79,7 +79,7 @@ class Zone:
         for x, y in self.points:
             if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
                 raise ValueError(
-                    f"zone point ({x}, {y}) is outside [0, 1] — points are normalised "
+                    f"zone point ({x}, {y}) is outside [0, 1]; points are normalised "
                     "fractions of frame size, not pixels"
                 )
 
@@ -125,7 +125,7 @@ def point_in_polygon(point: Point, polygon: tuple[Point, ...] | list[Point]) -> 
 
     A horizontal ray is cast to the right and its crossings of the polygon's edges are
     counted; an odd count means inside. Each edge is treated as half-open in *y* so a ray
-    passing exactly through a vertex is counted once rather than twice — the classic
+    passing exactly through a vertex is counted once rather than twice, the classic
     double-count that reports an interior point as outside.
 
     Concave polygons are handled by construction: a site zone is often an L around machinery,
@@ -279,7 +279,7 @@ def draw_zone(frame, name: str, source: str | None = None) -> Zone | None:
     cv2.destroyWindow(window)
 
     if not accepted:
-        logger.warning("zone drawing cancelled — nothing saved")
+        logger.warning("zone drawing cancelled; nothing saved")
         return None
     return Zone(
         name=name,
@@ -290,7 +290,7 @@ def draw_zone(frame, name: str, source: str | None = None) -> Zone | None:
 
 
 def preview(frame, zone: Zone, path: Path) -> None:
-    """Save the frame with the zone drawn on it — the evidence that it landed where intended."""
+    """Save the frame with the zone drawn on it: the evidence that it landed where intended."""
     import cv2
     import numpy as np
 
@@ -328,7 +328,7 @@ def main() -> int:
 
     if args.show:
         if not path.exists():
-            logger.error("no zone at %s — draw one first (drop --show)", path)
+            logger.error("no zone at %s; draw one first (drop --show)", path)
             return 1
         zone = load_zone(path)
     else:

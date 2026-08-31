@@ -1,18 +1,18 @@
-"""X01 / S1.1b — audit of Pictor-PPE, the evaluation-only violation set.
+"""X01 / S1.1b: audit of Pictor-PPE, the evaluation-only violation set.
 
 Pictor-PPE (Nath, Behzadan & Paal 2020) is the only dataset in this project that labels
 **compliance** rather than objects: each worker is tagged with what they are wearing. It is
-therefore the ground truth for the violation-recall axis — and it is **evaluation-only** by
+therefore the ground truth for the violation-recall axis, and it is **evaluation-only** by
 supervisor condition, so it never enters a training config (enforced in :mod:`src.guards`).
 
 The audit answers what S1.1 answered for SH17 and CHV, plus two questions unique to this set:
 
-1. **Structure + integrity** — what is on disk, do labels and images agree, are the boxes valid.
-2. **Class encoding, recovered rather than assumed** — the release ships no names file. The
+1. **Structure + integrity**: what is on disk, do labels and images agree, are the boxes valid.
+2. **Class encoding, recovered rather than assumed**: the release ships no names file. The
    three label sets correspond to the paper's three approaches; the mapping is *derived* by
    cross-tabulating which PPE boxes fall inside which worker box against the compliance class
    on the same worker, so the decoding rests on the data rather than on a guess.
-3. **Contamination** — a dHash screen against SH17 and CHV, because the violation numbers are
+3. **Contamination**: a dHash screen against SH17 and CHV, because the violation numbers are
    claimed zero-shot too.
 
 ⚠️ **The containment figure this audit reports is a *decoding check*, not a calibration.** The
@@ -55,7 +55,7 @@ COMPLIANCE_DECODING = {
     2: {"helmet": False, "vest": True},
     3: {"helmet": True, "vest": True},
 }
-CONTAINMENT_PROBE = 0.5  # decoding probe only — NOT the operative association threshold
+CONTAINMENT_PROBE = 0.5  # decoding probe only, NOT the operative association threshold
 
 Box = tuple[int, int, int, int, int]
 
@@ -120,7 +120,7 @@ def verify_class_mapping(a1: Labels, a2: Labels) -> tuple[Counter, int, int]:
     """Cross-tabulate compliance class against which PPE boxes sit inside the worker box.
 
     If the assumed encoding is right, class 1 workers contain a hat and no vest, class 2 a
-    vest and no hat, class 3 both, and class 0 neither — with the geometry agreeing on
+    vest and no hat, class 3 both, and class 0 neither, with the geometry agreeing on
     (nearly) every instance.
 
     Returns:
@@ -221,7 +221,7 @@ def build_report(
     split_sizes = Counter(a2.split_of.values())
 
     out = [
-        "# X01 / S1.1b — Pictor-PPE audit (evaluation-only violation set)",
+        "# X01 / S1.1b: Pictor-PPE audit (evaluation-only violation set)",
         "",
         f"Root: `{root}`",
         "",
@@ -309,7 +309,7 @@ def build_report(
     ]
     for cls, state in COMPLIANCE_DECODING.items():
         out.append(
-            f"| {cls} — {A2_NAMES[cls]} | {'yes' if state['helmet'] else 'NO (violation)'} "
+            f"| {cls}: {A2_NAMES[cls]} | {'yes' if state['helmet'] else 'NO (violation)'} "
             f"| {'yes' if state['vest'] else 'NO (violation)'} |"
         )
     out += [
@@ -360,7 +360,7 @@ def main() -> int:
             overlaps[name.upper()] = matches_within(hashes, others[name], threshold=5)
             logger.info("overlap vs %s: %d pairs", name.upper(), len(overlaps[name.upper()]))
     except FileNotFoundError:
-        logger.warning("dHash cache absent — skipping the contamination screen")
+        logger.warning("dHash cache absent; skipping the contamination screen")
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

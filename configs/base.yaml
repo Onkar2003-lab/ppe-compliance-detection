@@ -1,4 +1,4 @@
-# Base training config TEMPLATE — copy per run to ../../configs/<run-id>.yaml and freeze.
+# Base training config TEMPLATE: copy per run to ../../configs/<run-id>.yaml and freeze.
 # Fixed values are the reproducibility contract (00-coding-context §8). Do NOT edit a
 # frozen copy: any change = a new run-ID.
 
@@ -10,7 +10,7 @@ seed: 0                            # one of the 3 seeds (e.g. 0, 1, 2)
 datasets:
   sh17_root: "D:/Dissertation/SH17_dataset"
   chv_root: "D:/Dissertation/CHV_dataset"
-  # EVALUATION ONLY — binding supervisor condition (2026-07-26). Pictor-PPE must never be
+  # EVALUATION ONLY: binding supervisor condition (2026-07-26). Pictor-PPE must never be
   # trained or fine-tuned on, and never redistributed. Enforced in code by
   # src/guards.py::assert_training_data_excludes_pictor, which every training entry point
   # calls before a run starts. Listed here only so the audit + eval paths can resolve it.
@@ -24,7 +24,7 @@ imgsz: 640
 epochs: 200
 patience: 50                      # early-stop to cap wall-clock
 batch: 16                         # nano=16, small=8 (fits 8 GB with amp)
-amp: true                         # mixed precision — needed on 8 GB
+amp: true                         # mixed precision, needed on 8 GB
 cache: "disk"                     # 16 GB RAM: avoid RAM caching of SH17
 workers: 6
 pretrained: true                  # COCO-pretrained (matches C4)

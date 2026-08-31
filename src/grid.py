@@ -1,8 +1,8 @@
-"""X04 / S4 — the training grid: lock the run set, then execute it as a resumable queue.
+"""X04 / S4 training grid: lock the run set, then execute it as a resumable queue.
 
 **The grid.** 3 model families x 3 seeds x 2 transfer directions = **18 runs**, nano tier only
 (supervisor-approved 2026-07-28: the `small` variants were cut, justified by the edge-deployment
-focus; the consequence — that the ranking is established at nano capacity only — is a stated
+focus; the consequence (that the ranking is established at nano capacity only) is a stated
 Discussion limitation, not a silent one).
 
 **Ordering is seed-major, and that is the important design choice.** One *block* = all 3 models
@@ -12,7 +12,7 @@ finished model and two missing. The comparison is the contribution; the seeds ar
 around it. If time runs out at the end, what is lost is CI width, not the study.
 
 **One stopping protocol for every run: 200 epochs, patience 50.** No fixed epoch cap is baked in.
-A cap applied to some runs and not others would make the seeds incomparable — the multi-seed
+A cap applied to some runs and not others would make the seeds incomparable; the multi-seed
 spread would then measure a protocol difference and report it as variance, which is exactly the
 number the confidence intervals are supposed to mean. Patience-50 early stopping is itself the
 evidence-based stop, applied identically everywhere; the epoch each run actually stopped at is
@@ -21,10 +21,10 @@ conditional on. If wall-clock forces a cap later it must be applied uniformly an
 retrofitted to part of the grid.
 
 **Queue guarantees** (an overnight session must survive being interrupted):
-- a config is **frozen before** its run starts — the run-ID contract, never edited afterwards;
+- a config is **frozen before** its run starts: the run-ID contract, never edited afterwards;
 - a run whose ``summary.json`` exists is **skipped**, so re-invoking is safe and idempotent;
 - a run with a checkpoint but no summary is **resumed** from ``last.pt``;
-- a failure is **logged and the queue continues** — one bad run must not waste a whole session.
+- a failure is **logged and the queue continues**: one bad run must not waste a whole session.
 
 Usage::
 
@@ -56,7 +56,7 @@ from src.utils.logging import get_logger
 try:
     # Local-only (see .gitignore): holds PANDORA out of Modern Standby for the life of the queue
     # after F25 lost a run to it. It guards *this* machine's power behaviour rather than the
-    # method, so it is deliberately not released with the code — the grid runs without it.
+    # method, so it is deliberately not released with the code; the grid runs without it.
     from src import keepawake
 except ImportError:  # pragma: no cover - exercised only in a checkout without the local module
 
@@ -65,7 +65,7 @@ except ImportError:  # pragma: no cover - exercised only in a checkout without t
 
         @staticmethod
         def available() -> tuple[bool, str]:
-            return True, "keep-awake module not installed — machine power settings apply"
+            return True, "keep-awake module not installed; machine power settings apply"
 
         @staticmethod
         @contextmanager
@@ -80,7 +80,7 @@ EXPERIMENT = "X04"
 CONFIG_DIR = Path("configs")
 DATA_DIR = Path("configs/data")
 RUNS_ROOT = Path("D:/runs")
-# Deliberately OUTSIDE any run directory — see the note in execute().
+# Deliberately OUTSIDE any run directory; see the note in execute().
 QUEUE_LOG_DIR = RUNS_ROOT / "_queue-logs"
 
 # Nano tier only (2026-07-28). Keys are the ledger's short model tags.
@@ -139,7 +139,7 @@ class Run:
 
 
 def grid() -> list[Run]:
-    """The 18 runs in execution order — seed-major (see the module docstring)."""
+    """The 18 runs in execution order, seed-major (see the module docstring)."""
     return [
         Run(model_key, seed, direction)
         for seed in SEEDS
@@ -178,7 +178,7 @@ def config_for(run: Run) -> dict:
 def header_for(run: Run) -> str:
     """The provenance block that makes a frozen config self-explaining a year from now."""
     return (
-        f"# FROZEN RUN CONFIG — {run.run_id} (S4 training grid), frozen 2026-07-28.\n"
+        f"# FROZEN RUN CONFIG: {run.run_id} (S4 training grid), frozen 2026-07-28.\n"
         f"# DO NOT EDIT. Any change to these values = a new run-ID (run-ID contract).\n"
         f"#\n"
         f"# Grid: 3 nano families x 3 seeds x 2 directions = 18 runs, seed-major order.\n"
@@ -186,14 +186,14 @@ def header_for(run: Run) -> str:
         f"# (src/run.py), so the transfer gap is produced by every run rather than a later pass.\n"
         f"#\n"
         f"# Stopping protocol is IDENTICAL across all 18 runs: {EPOCHS} epochs, patience\n"
-        f"# {PATIENCE}. No fixed epoch cap — capping some runs and not others would make the\n"
+        f"# {PATIENCE}. No fixed epoch cap: capping some runs and not others would make the\n"
         f"# seeds incomparable and turn a protocol difference into apparent variance. The epoch\n"
         f"# each run stops at is the convergence evidence.\n"
         f"#\n"
         f"# Data is the pre-resized build (X03/F22): 640px long side, labels and frozen splits\n"
         f"# identical to the harmonised build. Ultralytics letterboxes to 640 regardless, so the\n"
         f"# training input is unchanged and comparability with C3/C4 holds.\n"
-        f"# cache=false — disk caching of decoded 18 MP arrays was the original bottleneck (F21).\n"
+        f"# cache=false: disk caching of decoded 18 MP arrays was the original bottleneck (F21).\n"
     )
 
 
@@ -219,13 +219,13 @@ def lock(force: bool = False) -> list[Run]:
 def execute(run: Run, dry_run: bool = False) -> tuple[str, float]:
     """Run one cell. Returns ``(outcome, seconds)``; never raises on a training failure."""
     if run.state == "done":
-        logger.info("%s: already complete — skipping", run.run_id)
+        logger.info("%s: already complete, skipping", run.run_id)
         return "skipped", 0.0
 
     command = [sys.executable, "-u", "-m", "src.run", "--config", str(run.config_path)]
     if run.state == "resumable":
         command.append("--resume")
-        logger.info("%s: checkpoint found — resuming", run.run_id)
+        logger.info("%s: checkpoint found, resuming", run.run_id)
 
     if dry_run:
         logger.info("%s: would run %s", run.run_id, " ".join(command))
@@ -233,7 +233,7 @@ def execute(run: Run, dry_run: bool = False) -> tuple[str, float]:
 
     # The console log MUST NOT live inside the run directory. Creating that directory ahead of
     # the trainer makes Ultralytics treat the run-ID as already used and write to an incremented
-    # folder (`...-sh17-2`) instead — which breaks the run-ID contract and leaves this queue
+    # folder (`...-sh17-2`) instead, which breaks the run-ID contract and leaves this queue
     # unable to see its own finished runs, so it would repeat them forever. S2 caught this once
     # already (X02/F19); it is kept out of the run directory here so it cannot recur.
     QUEUE_LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -248,7 +248,7 @@ def execute(run: Run, dry_run: bool = False) -> tuple[str, float]:
     if completed.returncode != 0 or not run.summary.exists():
         # Deliberately not raised: one bad run must not cost the rest of the session.
         logger.error(
-            "%s: FAILED (exit %d, %.1f min) — see %s; continuing to the next run",
+            "%s: FAILED (exit %d, %.1f min), see %s; continuing to the next run",
             run.run_id,
             completed.returncode,
             elapsed / 60,
@@ -261,9 +261,9 @@ def execute(run: Run, dry_run: bool = False) -> tuple[str, float]:
 
 
 def report_row(run: Run) -> str:
-    """One ledger-ready line per finished run (raw, per-seed — never a graduated number)."""
+    """One ledger-ready line per finished run (raw, per-seed, never a graduated number)."""
     if not run.summary.exists():
-        return f"| {run.run_id} | — | — | — | {run.state} |"
+        return f"| {run.run_id} | - | - | - | {run.state} |"
     data = json.loads(run.summary.read_text(encoding="utf-8"))
     epochs = "?"
     results = run.run_dir / "results.csv"
@@ -338,9 +338,9 @@ def print_progress(runs: list[Run]) -> None:
         return
     for run in active:
         detail = read_progress(run)
-        print(f"\n▶ IN FLIGHT — {run.run_id}  (run {runs.index(run) + 1} of {len(runs)})")
+        print(f"\n▶ IN FLIGHT: {run.run_id}  (run {runs.index(run) + 1} of {len(runs)})")
         if detail is None:
-            print("   starting up — no epoch written yet")
+            print("   starting up, no epoch written yet")
             continue
         done = int(30 * detail["epoch"] / EPOCHS)
         print(f"   [{'#' * done}{'.' * (30 - done)}] epoch {detail['epoch']}/{EPOCHS}")
@@ -350,7 +350,7 @@ def print_progress(runs: list[Run]) -> None:
         )
         print(
             f"   early stop  {detail['since_best']}/{PATIENCE} epochs since best "
-            f"— {PATIENCE - detail['since_best']} left if it never improves again"
+            f"({PATIENCE - detail['since_best']} left if it never improves again)"
         )
         print(
             f"   pace        {detail['seconds_per_epoch']:.1f} s/epoch "
@@ -361,7 +361,7 @@ def print_progress(runs: list[Run]) -> None:
         mark = "OK" if age < budget else "!! STALLED?"
         print(f"   last epoch  {age / 60:.1f} min ago  [{mark}]")
         if age >= budget:
-            print(f"      no epoch for >{budget / 60:.0f} min — check the process and the log")
+            print(f"      no epoch for >{budget / 60:.0f} min; check the process and the log")
 
 
 def gpu_line() -> str:
@@ -400,11 +400,11 @@ def gpu_line() -> str:
 
 
 def status(runs: list[Run]) -> None:
-    """Print what is done, running and left — the queue's own YOU-ARE-HERE."""
+    """Print what is done, running and left: the queue's own YOU-ARE-HERE."""
     by_state: dict[str, int] = {}
     for run in runs:
         by_state[run.state] = by_state.get(run.state, 0) + 1
-    logger.info("grid: %d runs — %s", len(runs), dict(sorted(by_state.items())))
+    logger.info("grid: %d runs, %s", len(runs), dict(sorted(by_state.items())))
     print_progress(runs)
     print("   " + gpu_line())
     print("\n| run-id | in-domain mAP50 | cross mAP50 | transfer delta | stopped |")
@@ -412,7 +412,7 @@ def status(runs: list[Run]) -> None:
     for run in runs:
         print(report_row(run))
     print(
-        "\n⚠️ Per-seed numbers — NOT results. They graduate only seed-aggregated "
+        "\n⚠️ Per-seed numbers are NOT results. They graduate only seed-aggregated "
         "(mean ± 95 % BCa CI + named test)."
     )
 
@@ -420,24 +420,24 @@ def status(runs: list[Run]) -> None:
 def watch(runs: list[Run], every: int = 15) -> int:
     """Refreshing dashboard: queue position, epoch progress and GPU in one window.
 
-    Read-only — it only reads results.csv and nvidia-smi, so it cannot disturb a live run.
+    Read-only: it only reads results.csv and nvidia-smi, so it cannot disturb a live run.
     """
     try:
         while True:
             done = sum(1 for run in runs if run.state == "done")
             print("\033[2J\033[H", end="")  # clear + home, so the panel refreshes in place
             print(
-                f"X04 GRID — {done}/{len(runs)} runs complete"
+                f"X04 GRID: {done}/{len(runs)} runs complete"
                 f"    {dt.datetime.now().astimezone():%H:%M:%S}    (Ctrl+C to close)"
             )
             print("=" * 72)
             print_progress(runs)
             print("\n   " + gpu_line())
             print("\n" + "=" * 72)
-            print("Per-seed numbers are NOT results — they graduate seed-aggregated only.")
+            print("Per-seed numbers are NOT results; they graduate seed-aggregated only.")
             time.sleep(every)
     except KeyboardInterrupt:
-        print("\nwatch stopped — the training run is unaffected.")
+        print("\nwatch stopped; the training run is unaffected.")
         return 0
 
 
@@ -455,7 +455,7 @@ class Check:
 
 
 def check_gpu() -> list[Check]:
-    """The GPU must be present, free, and big enough — checked before, not at 2 am."""
+    """The GPU must be present, free, and big enough, checked before, not at 2 am."""
     import torch
 
     checks: list[Check] = []
@@ -500,7 +500,7 @@ def check_keep_awake() -> Check:
     `S0 Low Power Idle` platform, where that timer is not the whole story. A guard that reads
     the wrong signal is worse than no guard, because it is believed.
 
-    So this now verifies the *mechanism the queue actually relies on* — it takes the
+    So this now verifies the *mechanism the queue actually relies on*: it takes the
     `SetThreadExecutionState` assertion and puts it back. Passing means the queue can hold the
     box awake, not that a setting looked right.
     """
@@ -516,7 +516,7 @@ def check_configs(runs: list[Run]) -> list[Check]:
             "Configs frozen",
             not missing,
             f"{len(runs) - len(missing)}/{len(runs)} present"
-            + (f" — MISSING {missing[:3]}" if missing else ""),
+            + (f" (MISSING {missing[:3]})" if missing else ""),
         )
     ]
 
@@ -562,7 +562,7 @@ def check_no_stale_run_dirs(runs: list[Run]) -> Check:
 
 
 def check_data(runs: list[Run]) -> list[Check]:
-    """Every image the queue will ask for must exist *now* — not fail 40 minutes in."""
+    """Every image the queue will ask for must exist *now*, not fail 40 minutes in."""
     checks: list[Check] = []
     for direction in sorted({run.direction for run in runs}):
         yaml_path = DATA_DIR / f"{direction}-640.yaml"
@@ -597,7 +597,7 @@ def check_data(runs: list[Run]) -> list[Check]:
             Check(
                 f"Data {direction} images present",
                 missing_images == 0 and missing_labels == 0,
-                f"{counts} — {missing_images} missing images, {missing_labels} missing labels",
+                f"{counts}: {missing_images} missing images, {missing_labels} missing labels",
             )
         )
     return checks
@@ -611,9 +611,10 @@ def check_pictor_excluded(runs: list[Run]) -> Check:
         if not run.config_path.exists():
             continue
         config = yaml.safe_load(run.config_path.read_text(encoding="utf-8"))
+        # Broad on purpose: any failure here must block the queue.
         try:
             assert_training_data_excludes_pictor(config, config["datasets"].get("pictor_root"))
-        except Exception as error:  # noqa: BLE001 — any failure here must block the queue
+        except Exception as error:  # noqa: BLE001
             return Check("Pictor excluded from training", False, f"{run.run_id}: {error}")
     return Check(
         "Pictor excluded from training", True, f"all {len(runs)} configs clean (eval-only)"
@@ -621,7 +622,7 @@ def check_pictor_excluded(runs: list[Run]) -> Check:
 
 
 def check_weights(runs: list[Run]) -> Check:
-    """Weights must be on disk already — a mid-queue download can fail and waste the slot."""
+    """Weights must be on disk already: a mid-queue download can fail and waste the slot."""
     needed = sorted({MODELS[run.model_key] for run in runs})
     absent = [name for name in needed if not Path(name).exists()]
     return Check(
@@ -643,7 +644,7 @@ def preflight(runs: list[Run]) -> bool:
     checks.append(check_pictor_excluded(runs))
     checks.append(check_weights(runs))
 
-    print(f"\nPRE-FLIGHT — {len(runs)} run(s) queued\n" + "-" * 72)
+    print(f"\nPRE-FLIGHT: {len(runs)} run(s) queued\n" + "-" * 72)
     for check in checks:
         mark = "PASS" if check.passed else ("FAIL" if check.blocking else "WARN")
         print(f"  [{mark}] {check.name:<34} {check.detail}")
@@ -652,9 +653,9 @@ def preflight(runs: list[Run]) -> bool:
     blocking = [check for check in checks if not check.passed and check.blocking]
     warnings = [check for check in checks if not check.passed and not check.blocking]
     if warnings:
-        print(f"  {len(warnings)} warning(s) — not fatal, but read them before an unattended run.")
+        print(f"  {len(warnings)} warning(s): not fatal, but read them before an unattended run.")
     if blocking:
-        print(f"  {len(blocking)} BLOCKING failure(s) — the queue will not start.\n")
+        print(f"  {len(blocking)} BLOCKING failure(s); the queue will not start.\n")
         return False
     print("  All blocking checks passed. Safe to start.\n")
     return True
@@ -689,15 +690,15 @@ def main() -> int:
         return 0 if preflight(runs) else 1
 
     # The queue always pre-flights itself. GPU time is the scarce resource, so a run is never
-    # started on a system that has already failed a check — the whole point is to burn a second
+    # started on a system that has already failed a check; the whole point is to burn a second
     # here rather than discover the problem 40 minutes into an epoch.
     if not arguments.dry_run and not preflight(runs):
-        logger.error("pre-flight FAILED — nothing started; fix the FAIL lines above")
+        logger.error("pre-flight FAILED: nothing started; fix the FAIL lines above")
         return 1
 
     outcomes: dict[str, int] = {}
     total = 0.0
-    # Held for the queue only, and released below — the laptop keeps its normal sleep behaviour
+    # Held for the queue only, and released below; the laptop keeps its normal sleep behaviour
     # the rest of the time. See keepawake.py for why the power-scheme timer was not enough.
     with keepawake.keep_awake("training queue"):
         for index, run in enumerate(runs, 1):
@@ -706,7 +707,7 @@ def main() -> int:
             outcomes[outcome] = outcomes.get(outcome, 0) + 1
             total += elapsed
 
-    logger.info("queue finished in %.1f h — %s", total / 3600, dict(sorted(outcomes.items())))
+    logger.info("queue finished in %.1f h: %s", total / 3600, dict(sorted(outcomes.items())))
     status(runs)
     return 1 if outcomes.get("failed") else 0
 

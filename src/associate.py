@@ -1,8 +1,8 @@
-"""X01 / S1.4c — the person↔PPE association rule (the violation axis *and* the O6 demo).
+"""X01 / S1.4c: the person↔PPE association rule (the violation axis *and* the O6 demo).
 
 The trained label space is `{person, helmet, vest}`: `no-helmet` and `no-vest` are not
 classes, because no training set annotates worn-state (X01/F2) and the one set that labels
-compliance — Pictor-PPE — is evaluation-only by supervisor condition. Compliance is
+compliance (Pictor-PPE) is evaluation-only by supervisor condition. Compliance is
 therefore **derived**: a detector emits boxes, this rule decides which helmet and which vest
 belong to which person, and a person with no bound helmet is a helmet violation.
 
@@ -11,26 +11,26 @@ actually measures (scored zero-shot against Pictor's per-worker `W`/`WH`/`WV`/`W
 is what the live demo checks inside the user's zone. So it is written once, here, imported by
 both, and tested on synthetic geometry where the answer is known by construction.
 
-**Provenance.** Nath, Behzadan & Paal (2020) — the Pictor-PPE paper (C11) — bind PPE to
+**Provenance.** Nath, Behzadan & Paal (2020), the Pictor-PPE paper (C11), bind PPE to
 workers in their Approach-1 by an explicit overlap rule, `IoU(worker, PPE) > 45 %`, with a
 learned decision-tree/neural-net over normalised coordinates as the accurate alternative. We
 adopt the explicit-overlap option (user decision, 2026-07-27; the learned variant is a parked
 lever) with one deliberate change of measure:
 
 **Containment, not IoU.** A helmet occupies a few percent of the person that wears it, so a
-correct helmet↔person pair has an IoU near 0.03 — Nath's 0.45 threshold cannot be reached by
+correct helmet↔person pair has an IoU near 0.03, so Nath's 0.45 threshold cannot be reached by
 any helmet in our harmonised data (quantified in the calibration report). Asymmetric
 containment, `area(PPE ∩ person) / area(PPE)`, asks the question the geometry actually poses:
 *is this helmet on this person*, not *are these two boxes the same object*.
 
 **Ties are broken by anchor distance, not by containment.** A helmet between two heads is
 fully contained in both boxes, so containment alone is exactly 1.0 twice over. PPE has an
-expected place on a body — a helmet at the top, a vest across the upper torso — so ties go to
+expected place on a body (a helmet at the top, a vest across the upper torso), so ties go to
 the person whose anchor is nearest, normalised by that person's diagonal so the rule is
 scale-free. Bindings are then resolved greedily and exclusively: one helmet and one vest per
 person, each PPE box to at most one person.
 
-Threshold: :data:`THRESHOLD`, calibrated on SH17 + CHV **training** splits only — never on
+Threshold: :data:`THRESHOLD`, calibrated on SH17 + CHV **training** splits only, never on
 Pictor (the evaluation set) and never on an evaluation split. Protocol and evidence:
 ``python -m src.associate`` and the pack ``findings/X01-S1.4c-association-rule.md``.
 
@@ -60,7 +60,7 @@ REQUIRED_PPE: tuple[int, ...] = (HELMET, VEST)
 
 # Calibrated on SH17+CHV train splits (X01/S1.4c): the 0.05-grid threshold with the best
 # separation (Youden's J) between true pairs and cross-image false pairs. The curve is a broad
-# plateau, so neighbouring values behave the same — but changing it changes every violation
+# plateau, so neighbouring values behave the same, but changing it changes every violation
 # number, so it is a frozen constant, re-derived only by `python -m src.associate`.
 THRESHOLD = 0.80
 
@@ -101,7 +101,7 @@ class Box:
 
     @property
     def corners(self) -> tuple[float, float, float, float]:
-        """``(x1, y1, x2, y2)`` — left, top, right, bottom."""
+        """``(x1, y1, x2, y2)``: left, top, right, bottom."""
         return (
             self.xc - self.w / 2,
             self.yc - self.h / 2,
@@ -135,7 +135,7 @@ def containment(ppe: Box, person: Box) -> float:
 
 
 def iou(a: Box, b: Box) -> float:
-    """Symmetric intersection-over-union — kept for the comparison against Nath's rule."""
+    """Symmetric intersection-over-union, kept for the comparison against Nath's rule."""
     overlap = intersection_area(a, b)
     union = a.area + b.area - overlap
     return overlap / union if union > 0 else 0.0
@@ -160,7 +160,7 @@ def anchor_distance(ppe: Box, person: Box) -> float:
 
 @dataclass
 class PersonState:
-    """One person and the PPE bound to them — the unit the violation axis scores."""
+    """One person and the PPE bound to them: the unit the violation axis scores."""
 
     index: int
     box: Box
@@ -198,7 +198,7 @@ def associate(boxes: list[Box], threshold: float = THRESHOLD) -> Association:
     A pair is *eligible* when the PPE box is at least ``threshold`` contained in the person
     box. Eligible pairs are taken greedily, strongest first, with ties broken by the smaller
     normalised anchor distance; a person accepts at most one item per class and each PPE box
-    is bound at most once. Anything left over is reported in :attr:`Association.unbound` —
+    is bound at most once. Anything left over is reported in :attr:`Association.unbound`:
     a helmet on the ground has no wearer, and inventing one would manufacture compliance.
 
     Args:
@@ -251,18 +251,18 @@ def boxes_from_rows(rows: list[tuple[int, float, float, float, float]]) -> list[
 # The threshold cannot be fitted on labelled associations, because no dataset we may train on
 # says which helmet belongs to which worker. Two facts make it calibratable anyway:
 #
-#   Positives  — in a single-person image, every PPE box belongs to that person by
+#   Positives:   in a single-person image, every PPE box belongs to that person by
 #                construction. Their containment distribution is the cost of setting the
 #                threshold too high: a missed binding invents a violation.
-#   Negatives  — a PPE box paired with a person from a *different* image is certainly not
+#   Negatives:   a PPE box paired with a person from a *different* image is certainly not
 #                worn by them. Their binding rate is the cost of setting it too low: an
 #                accidental binding invents compliance. Random pairing puts small PPE boxes
 #                against arbitrarily large person boxes, so this is an upper bound on
 #                nuisance binding, not a natural error rate.
 #
 # The threshold maximises the separation between the two (Youden's J = true-pair retention −
-# false-pair binding). True-pair containment turns out to be bimodal — worn PPE sits at 1.0,
-# a small tail of unworn PPE sits at 0 — so J is a broad plateau rather than a peak, and the
+# false-pair binding). True-pair containment turns out to be bimodal: worn PPE sits at 1.0,
+# a small tail of unworn PPE sits at 0, so J is a broad plateau rather than a peak, and the
 # plateau is reported as a sensitivity band.
 
 
@@ -279,7 +279,7 @@ class Pairs:
     # Worst true pairs (stem, PPE box, person box), kept for visual verification: any claim
     # about why the rule leaves them unbound has to be looked at, not assumed.
     weakest: list[tuple[str, Box, Box, float]] = field(default_factory=list)
-    # Images holding more helmets than person boxes — PPE whose wearer is not annotated.
+    # Images holding more helmets than person boxes: PPE whose wearer is not annotated.
     helmet_images: int = 0
     excess_helmet_images: int = 0
 
@@ -374,7 +374,7 @@ def choose_threshold(table: list[dict]) -> tuple[float, list[float]]:
     """Best-separating grid threshold, with the plateau of values that tie with it.
 
     Returns:
-        ``(threshold, plateau)`` — the τ with the highest separation, and every τ within
+        ``(threshold, plateau)``: the τ with the highest separation, and every τ within
         :data:`PLATEAU_TOLERANCE` of it. A wide plateau is the point: it says the derived
         compliance state is insensitive to the exact threshold, so the violation numbers do
         not hang on one arbitrary constant.
@@ -457,7 +457,7 @@ def fig_score_distributions(datasets: dict[str, Pairs], chosen: float, out: Path
     )
 
     axes[0].set_title("Containment (∩ ÷ PPE area)", fontsize=10)
-    axes[1].set_title("IoU — the measure we replace", fontsize=10)
+    axes[1].set_title("IoU: the measure we replace", fontsize=10)
     for axis in axes:
         axis.set_xlabel("score")
         axis.set_yscale("log")
@@ -537,7 +537,7 @@ def fig_unbound_examples(
     out: Path,
     count: int = 6,
 ) -> None:
-    """Look at the true pairs the rule refuses to bind — rule failure, or bad ground truth?
+    """Look at the true pairs the rule refuses to bind: rule failure, or bad ground truth?
 
     Single-person images whose PPE barely overlaps the worker are where the rule could be
     wrong by construction, so they are rendered rather than summarised. Inspection is what
@@ -590,7 +590,7 @@ def fig_unbound_examples(
                 )
             )
         axis.set_title(
-            f"{name.upper()} {stem[:20]} — {CLASS_NAMES[item.cls]} containment {score:.2f}",
+            f"{name.upper()} {stem[:20]}: {CLASS_NAMES[item.cls]} containment {score:.2f}",
             fontsize=8,
         )
     for axis in axes.flat:
@@ -625,7 +625,7 @@ def build_report(
 ) -> str:
     """Markdown record of the calibration (the run-ledger stays canonical for findings)."""
     lines = [
-        "# X01 / S1.4c — person↔PPE association rule: calibration",
+        "# X01 / S1.4c: person↔PPE association rule calibration",
         "",
         (
             "Rule: bind PPE to a person when `area(PPE ∩ person) / area(PPE) >= τ`, ties to the "
@@ -634,7 +634,7 @@ def build_report(
         ),
         "",
         (
-            f"**Chosen τ = {chosen:g}** — best separation (true-pair retention − false-pair "
+            f"**Chosen τ = {chosen:g}**: best separation (true-pair retention − false-pair "
             f"binding) on the 0.05 grid. Every τ in **[{min(plateau):g}, {max(plateau):g}]** ties "
             f"within {PLATEAU_TOLERANCE:.0%}, so the derived compliance state does not hang on "
             f"the exact value. Calibrated on the `{CALIBRATION_SPLIT}` splits of SH17 + CHV "
@@ -698,9 +698,9 @@ def build_report(
         (
             "True pairs falling below τ are the calibration's floor. Rendering them "
             "(`association-unbound-examples`) shows they are **not** rule failures: the PPE box "
-            "sits on a person who carries no `person` annotation — SH17 labels a torso-only "
+            "sits on a person who carries no `person` annotation; SH17 labels a torso-only "
             "figure `head`/`face` rather than `person`, and CHV frames often annotate one worker "
-            "of several — plus a genuine case of unworn PPE (CHV `ppe_0531`: a helmet inside a "
+            "of several, plus a genuine case of unworn PPE (CHV `ppe_0531`: a helmet inside a "
             "storage box). So these images contain more helmets than people by construction, and "
             "no association rule can bind them."
         ),
@@ -713,7 +713,7 @@ def build_report(
             f"{pairs.excess_helmet_images} / {pairs.helmet_images} "
             f"({pairs.excess_helmet_images / pairs.helmet_images:.1%})"
             if pairs.helmet_images
-            else "—"
+            else "-"
         )
         for cls in REQUIRED_PPE:
             scores = pairs.positive[cls]
@@ -765,7 +765,7 @@ def main() -> int:
         root = args.harmonised / name
         if not root.is_dir():
             logger.error(
-                "harmonised build missing: %s — run `python -m src.harmonise` first",
+                "harmonised build missing: %s; run `python -m src.harmonise` first",
                 root,
             )
             return 1
@@ -791,7 +791,7 @@ def main() -> int:
     )
     if args.threshold is None and abs(chosen - THRESHOLD) > 1e-9:
         logger.warning(
-            "calibration disagrees with src.associate.THRESHOLD (%.2f vs %.2f) — update the "
+            "calibration disagrees with src.associate.THRESHOLD (%.2f vs %.2f); update the "
             "constant and re-run the tests, or the rule and its evidence have drifted apart",
             chosen,
             THRESHOLD,

@@ -1,11 +1,11 @@
-# O6 demonstration — the zone compliance monitor (S6.4).
+# O6 demonstration: the zone compliance monitor (S6.4).
 # Every path and threshold the demo uses lives here: `python -m src.monitor --config
 # configs/demo.yaml` must run with no other argument, so the demo is reproducible and portable
 # rather than depending on one machine's layout.
 
 # Detector. YOLOv8n, SH17-trained, seed 0 (S6.0 decision, 2026-08-10): F30 found no difference
 # between the architectures on four of five metrics, so the choice is a deployment one about
-# speed (F29 — y8n is fastest on GPU and CPU), and SH17-trained models recall markedly more
+# speed (F29: y8n is fastest on GPU and CPU), and SH17-trained models recall markedly more
 # helmet violations on Pictor than CHV-trained ones.
 weights: "D:/runs/X04-y8n-s0-sh17/weights/best.pt"
 
@@ -13,7 +13,7 @@ weights: "D:/runs/X04-y8n-s0-sh17/weights/best.pt"
 # `0`, an `rtsp://` or `http://` stream, or a directory of stills.
 #
 # The default clip was chosen by measurement, not by eye (2026-08-10). Candidates were scored
-# for camera fixity — median global translation between frames, by phase correlation — and for
+# for camera fixity (median global translation between frames, by phase correlation) and for
 # how much compliance variety the detector actually sees in them. This one holds still to
 # 0.08 px/frame, which is what a site camera does and what makes a zone drawn on frame one stay
 # meaningful, and carries ~11 workers per frame with both compliant and non-compliant among
@@ -31,7 +31,7 @@ required_ppe: ["helmet", "vest"]
 # the demo behaves the way the results chapter reports.
 conf: 0.25
 
-# Association rule threshold — the calibrated containment τ (X01/S1.4c). Changing it makes the
+# Association rule threshold: the calibrated containment τ (X01/S1.4c). Changing it makes the
 # demo disagree with the violation numbers, so it is here to be seen, not to be tuned.
 association_threshold: 0.80
 
@@ -40,7 +40,7 @@ tracker: "bytetrack.yaml"   # C9 (Zhang 2022)
 # Alarm behaviour, following process-industry alarm-management practice (ANSI/ISA-18.2;
 # EEMUA 191): an on-delay timer and a hysteresis, the two techniques those standards prescribe
 # against chattering and fleeting alarms. The analogy to vision alerts is stated as an analogy
-# in the write-up — but the failure it prevents (an operator swamped into ignoring alerts) is
+# in the write-up, but the failure it prevents (an operator swamped into ignoring alerts) is
 # the same one. Measured on the 15.6 s demonstration clip: dwell 3 s with a 1 s memory takes
 # the alert count from 27 to 1.
 #

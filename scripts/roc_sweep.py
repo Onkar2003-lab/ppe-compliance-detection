@@ -1,4 +1,4 @@
-"""X07-roc-metrics — ROC / PR / calibration data for the per-worker helmet-compliance decision.
+"""X07-roc-metrics: ROC / PR / calibration data for the per-worker helmet-compliance decision.
 
 Post-processing only. Nothing here retrains, re-tunes, or touches mAP: it re-scores the
 **frozen S5.4 violation-axis decision** across the detection-confidence threshold tau, so the
@@ -6,7 +6,7 @@ write-up can show an ROC / PR curve and a calibration plot for a decision where 
 are actually defined.
 
 **Why the curves are valid here and not on raw detection.** Object detection has no true
-negatives — an unbounded number of boxes are correctly not emitted — so ROC on detections is
+negatives (an unbounded number of boxes are correctly not emitted), so ROC on detections is
 meaningless. The per-worker compliance decision does have them: every labelled Pictor worker
 is one sample, the positive class is *helmet violation* (~35 % of 2,497), and a compliant
 worker the system correctly stayed silent about is a true negative. Helmet only: vest is
@@ -16,7 +16,7 @@ saturated (41 vest-wearers, 1.6 %) and its curve would describe the label skew, 
 (:func:`src.associate.associate`, containment 0.80) and the person match (IoU 0.50) are the
 frozen S5.4 settings, imported rather than reimplemented; the eval set is the same whole
 Pictor release (774 images / 2,497 workers); the strict scoring rule of S5.4 decision 1 is
-kept — an undetected violator is a false negative, an undetected compliant worker is a true
+kept: an undetected violator is a false negative, an undetected compliant worker is a true
 negative. The tau=0.25 column of the sweep therefore has to reproduce the frozen X05 helmet
 counts exactly, and :func:`verify` asserts it against the cached X05 JSON.
 
@@ -59,7 +59,7 @@ DEFAULT_RUNS = Path("D:/runs")
 DEFAULT_CACHE = Path("D:/runs/X07-roc/cache")
 DEFAULT_OUT = Path("D:/runs/X07-roc")  # pass --out to write the CSVs somewhere else
 
-# SH17-trained only: the transfer direction S5.4 reports. Seeds 0-2 all included — inference is
+# SH17-trained only: the transfer direction S5.4 reports. Seeds 0-2 all included; inference is
 # well under a minute a run, so the extra seeds cost nothing and let the curve carry a spread.
 RUNS = [f"X04-{m}-s{s}-sh17" for s in (0, 1, 2) for m in ("y8n", "y11n", "y26n")]
 MODEL_OF = {"y8n": "YOLOv8n", "y11n": "YOLO11n", "y26n": "YOLO26n"}
@@ -76,7 +76,7 @@ def cached_predictions(weights: Path, images_dir: Path, names: list[str], cache:
     """Every detection at conf >= :data:`SWEEP_FLOOR` for one run, cached to disk.
 
     Returns the per-image ``(M, 6)`` arrays of ``(cls, xc, yc, w, h, conf)`` in normalised
-    coordinates, plus each image's pixel size — needed to normalise the ground truth the same
+    coordinates, plus each image's pixel size, needed to normalise the ground truth the same
     way :mod:`src.violation` does, from the detector's own view of the image.
     """
     if cache.is_file():
@@ -141,8 +141,8 @@ def workers_for(rows: list, size: tuple[int, int]) -> list[Worker]:
 def score_image_rows(raw: np.ndarray, workers: list[Worker], tau: float) -> list[dict]:
     """One row per labelled worker: the helmet decision this image's detections produce.
 
-    Mirrors :func:`src.violation.score_image` exactly — same association call, same greedy
-    IoU person match, same strict treatment of an undetected worker — but emits the decision
+    Mirrors :func:`src.violation.score_image` exactly: same association call, same greedy
+    IoU person match, same strict treatment of an undetected worker, but emits the decision
     per worker instead of folding it straight into a confusion table, so one pass produces
     both the sweep tallies and the calibration rows.
     """
@@ -201,7 +201,7 @@ def tally(rows: list[dict]) -> Confusion:
 def verify(run_id: str, counts: Confusion, runs_dir: Path, partial: bool) -> str:
     """Assert the tau=0.25 column reproduces the frozen X05 helmet counts.
 
-    Only meaningful over the whole eval set — a ``--limit`` smoke run scores a subset of the
+    Only meaningful over the whole eval set; a ``--limit`` smoke run scores a subset of the
     774 images and cannot match, so it reports rather than asserts.
     """
     cached = runs_dir / "X05-violation" / f"{run_id}-violation.json"
@@ -225,7 +225,9 @@ def write_csv(path: Path, fields: list[str], rows: list[dict]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="ROC/PR/calibration sweep for the helmet decision.")
+    parser = argparse.ArgumentParser(
+        description="ROC/PR/calibration sweep for the helmet decision."
+    )
     parser.add_argument("--pictor", type=Path, default=DEFAULT_PICTOR)
     parser.add_argument("--runs", type=Path, default=DEFAULT_RUNS)
     parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
@@ -246,7 +248,7 @@ def main() -> int:
     for run_id in RUNS:
         weights = args.runs / run_id / "weights" / "best.pt"
         if not weights.is_file():
-            logger.warning("no weights for %s — skipped", run_id)
+            logger.warning("no weights for %s, skipped", run_id)
             continue
         family, seed = run_id.split("-")[1], int(run_id.split("-")[2][1:])
         cached = cached_predictions(weights, images_dir, names, args.cache / f"{run_id}.npz")
@@ -310,7 +312,7 @@ def main() -> int:
         )
 
     for line in checks:
-        logger.info("check — %s", line)
+        logger.info("check: %s", line)
     (args.out / "_provenance.json").write_text(
         json.dumps({"runs": provenance, "checks": checks}, indent=2), encoding="utf-8"
     )

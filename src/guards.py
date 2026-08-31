@@ -43,7 +43,7 @@ def assert_training_data_excludes_pictor(config: dict, pictor_root: Path | None 
     ``path``, ``train`` or a custom key.
 
     One value is exempt: ``datasets.pictor_root`` itself. The root is *declared* on purpose so
-    the audit and evaluation paths can resolve it, and a config is not a training run — what
+    the audit and evaluation paths can resolve it, and a config is not a training run; what
     matters is that no training input ever points there. Declaring it stays legal; reaching it
     from anywhere else does not.
 

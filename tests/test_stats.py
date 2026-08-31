@@ -33,7 +33,7 @@ def test_interval_brackets_the_mean() -> None:
 
 
 def test_zero_variance_sample_gives_a_zero_width_interval_and_says_why() -> None:
-    """Identical seeds mean no information about spread — the method must admit it."""
+    """Identical seeds mean no information about spread; the method must admit it."""
     interval = bca_interval([0.5, 0.5, 0.5])
     assert interval.low == interval.high == pytest.approx(0.5)
     # Degraded to the percentile method, and the label says so rather than claiming BCa.
@@ -75,7 +75,7 @@ def test_minimum_attainable_p_at_three_pairs_is_a_quarter() -> None:
 
 
 def test_three_pairs_cannot_reach_significance_even_when_separated() -> None:
-    """A perfectly separated comparison at n=3 still cannot clear 0.05 — by construction."""
+    """A perfectly separated comparison at n=3 still cannot clear 0.05, by construction."""
     test = paired_permutation([0.90, 0.91, 0.92], [0.10, 0.11, 0.12])
     assert test["p_value"] >= 0.25
     assert test["significant_at_05"] is False
@@ -170,7 +170,7 @@ def test_aggregate_pools_directions_to_buy_power() -> None:
 
 
 def test_aggregate_pairs_like_with_like() -> None:
-    """The known +0.02 offset must come back exactly — proof the pairing is aligned."""
+    """The known +0.02 offset must come back exactly: proof the pairing is aligned."""
     result = aggregate(rows(), "score")
     test = result["pairwise_permutation"]["y11n vs y8n"]
     assert test["mean_difference"] == pytest.approx(0.02, abs=1e-9)

@@ -1,7 +1,7 @@
 """The violation-recall axis: zero-shot compliance scoring on Pictor-PPE (S5).
 
-This is the axis that asks the question the whole project exists for — *does the system
-catch a worker who is not wearing their PPE?* — and it is the only one of the four axes
+This is the axis that asks the question the whole project exists for: *does the system
+catch a worker who is not wearing their PPE?* It is the only one of the four axes
 that no earlier stage touched.
 
 **What makes the number meaningful is that nothing here was trained.** Pictor-PPE is
@@ -10,7 +10,7 @@ with SH17 or CHV (0 dHash pairs, X01/S1.1b F11), and `no-helmet` is not a class 
 was ever shown. The detector emits `{person, helmet, vest}`; the calibrated association
 rule (:mod:`src.associate`, threshold fixed on SH17/CHV train splits and never on Pictor)
 derives each person's compliance state; Pictor's per-worker `W`/`WH`/`WV`/`WHV` labels then
-score that state. So the axis measures the deployed *pipeline*, not a classifier head — and
+score that state. So the axis measures the deployed *pipeline*, not a classifier head, and
 it shares its logic with the O6 demo, which is why the rule lives in one module imported by
 both.
 
@@ -29,7 +29,7 @@ gone the other way. They are stated here rather than buried in the code:
    test-split-only figure remains recoverable without re-running.
 3. **Predicted people are matched to labelled workers at IoU >= 0.5**, greedily and
    one-to-one. Person-to-person is a like-for-like comparison, so ordinary IoU is right
-   here — unlike the PPE binding inside the association rule, where a helmet against a
+   here, unlike the PPE binding inside the association rule, where a helmet against a
    full-body box forced containment instead (F17).
 4. **The detection confidence threshold is frozen at the Ultralytics default (0.25).** The
    improvement protocol's L1 lever (threshold tuning for recall) is deliberately deferred
@@ -40,7 +40,7 @@ gone the other way. They are stated here rather than buried in the code:
 **Helmet leads; vest is reported but never alone.** The available Pictor release holds only
 41 vest-wearing workers (1.6 %), so a model that never predicts a vest scores near-perfect
 vest-violation recall. Every vest figure is therefore emitted beside the always-flag trivial
-baseline and its support count, in the same row, by construction — the report cannot be
+baseline and its support count, in the same row, by construction; the report cannot be
 generated without them (user decision A, X01/S1.1b F13).
 
 Usage::
@@ -129,7 +129,7 @@ def load_ground_truth(root: Path) -> dict[str, list[tuple[tuple[int, ...], bool,
         for box in boxes:
             decoded = COMPLIANCE_DECODING.get(box[4])
             if decoded is None:
-                logger.warning("%s: unknown compliance class %s — skipped", image, box[4])
+                logger.warning("%s: unknown compliance class %s, skipped", image, box[4])
                 continue
             rows.append((box, decoded["helmet"], decoded["vest"], split))
         truth[image] = rows
@@ -146,7 +146,7 @@ def load_ground_truth(root: Path) -> dict[str, list[tuple[tuple[int, ...], bool,
 
 
 def iou(a: Box, b: Box) -> float:
-    """Symmetric IoU — the right measure for person-against-person (decision 3)."""
+    """Symmetric IoU: the right measure for person-against-person (decision 3)."""
     ax1, ay1, ax2, ay2 = a.corners
     bx1, by1, bx2, by2 = b.corners
     width = min(ax2, bx2) - max(ax1, bx1)
@@ -203,7 +203,7 @@ class Confusion:
 
     @property
     def support(self) -> int:
-        """Labelled workers actually in violation — the denominator of recall."""
+        """Labelled workers actually in violation: the denominator of recall."""
         return self.tp + self.fn
 
     @property
@@ -222,7 +222,7 @@ class Confusion:
 
     @property
     def base_rate(self) -> float:
-        """Share of workers in violation — and the precision of always flagging."""
+        """Share of workers in violation, and the precision of always flagging."""
         total = self.tp + self.fp + self.fn + self.tn
         return self.support / total if total else 0.0
 
@@ -404,10 +404,10 @@ def build_report(scores: list[Score], out: Path) -> Path:
 
     ranked = sorted(reports, key=lambda r: -r["headline_helmet_violation_recall"])
     lines = [
-        "# X05 — violation-recall axis (zero-shot, Pictor-PPE)",
+        "# X05: violation-recall axis (zero-shot, Pictor-PPE)",
         "",
         "Per-run numbers only. **Nothing here is a result until S5 aggregates it across seeds",
-        "with a 95 % BCa CI and the named test** — no 'X beats Y' from this table.",
+        "with a 95 % BCa CI and the named test**; no 'X beats Y' from this table.",
         "",
         "Helmet is the headline. Vest is shown beside its always-flag trivial baseline and its",
         "support count, because only 1.6 % of the available workers wear one.",
@@ -425,7 +425,7 @@ def build_report(scores: list[Score], out: Path) -> Path:
 
     first = reports[0]
     settings = (
-        f"Settings — confidence {first['settings']['confidence']}, "
+        f"Settings: confidence {first['settings']['confidence']}, "
         f"person match IoU {first['settings']['match_iou']}, "
         "association threshold calibrated on SH17/CHV train splits only."
     )
@@ -438,7 +438,7 @@ def build_report(scores: list[Score], out: Path) -> Path:
         settings,
         scored_on,
         "",
-        "An undetected worker counts as a violation missed, not as an absent sample — see",
+        "An undetected worker counts as a violation missed, not as an absent sample; see",
         "`violations_missed_because_person_undetected` in each run's JSON.",
     ]
     path = out / "X05-violation-summary.md"
@@ -459,7 +459,7 @@ def main() -> int:
     parser.add_argument(
         "--sweep",
         action="store_true",
-        help="also report confidence sensitivity (reporting only — does not move the headline)",
+        help="also report confidence sensitivity (reporting only; does not move the headline)",
     )
     args = parser.parse_args()
 

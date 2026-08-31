@@ -3,7 +3,7 @@
 One run = one config = one run-ID. This module is the only place a model is trained, so the
 reproducibility contract is enforced in one place rather than remembered in several: the
 Pictor guard runs before training starts, the seed is set from the config, and the exact
-versions and git commit are written beside the results. Nothing here decides *what* to run —
+versions and git commit are written beside the results. Nothing here decides *what* to run;
 that comes from the config file, which is frozen per run-ID and never edited afterwards.
 
 The cross-evaluation is the point of the whole project, so it is part of the standard run
@@ -67,7 +67,7 @@ def git_commit() -> str:
 
 
 def environment() -> dict[str, str]:
-    """Versions that change results — recorded with every run, not assumed stable."""
+    """Versions that change results: recorded with every run, not assumed stable."""
     import torch
     import ultralytics
 
@@ -145,7 +145,7 @@ def train(config: dict, data_yaml: Path, run_dir: Path, resume: bool = False) ->
     supposed to prevent.
 
     With ``resume``, training continues from the run's own ``last.pt``. Every hyperparameter
-    is then restored from that checkpoint rather than re-passed — Ultralytics owns the resume
+    is then restored from that checkpoint rather than re-passed; Ultralytics owns the resume
     contract, and re-supplying arguments is how a resumed run silently becomes a different
     run. Nothing is overridden here, so an interrupted overnight run resumes as itself.
     """
@@ -185,7 +185,7 @@ def train(config: dict, data_yaml: Path, run_dir: Path, resume: bool = False) ->
     save_dir = Path(model.trainer.save_dir)
     if save_dir.resolve() != run_dir.resolve():
         logger.warning(
-            "Ultralytics wrote to %s, not %s — the run-ID directory already existed. "
+            "Ultralytics wrote to %s, not %s; the run-ID directory already existed. "
             "Results below come from the directory actually written.",
             save_dir,
             run_dir,

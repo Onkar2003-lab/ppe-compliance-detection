@@ -1,4 +1,4 @@
-"""S6.1 — the zone layer, tested where its answers are knowable by construction.
+"""S6.1 the zone layer, tested where its answers are knowable by construction.
 
 Point-in-polygon, boundary handling and the feet-point rule are pure geometry with exact
 answers, so they are proven here rather than sampled on footage. That matters for the
@@ -61,7 +61,7 @@ def test_degenerate_polygons_are_rejected():
 
 
 def test_collinear_zone_has_no_interior():
-    """Three points on a line enclose nothing — only the line itself is 'inside'."""
+    """Three points on a line enclose nothing; only the line itself is 'inside'."""
     zone = Zone(name="flat", points=((0.1, 0.5), (0.5, 0.5), (0.9, 0.5)))
     assert zone.contains((0.5, 0.5))  # on the degenerate boundary
     assert not zone.contains((0.5, 0.6))

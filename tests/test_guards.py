@@ -1,4 +1,4 @@
-"""Tests for the run guards — chiefly the supervisor's evaluation-only condition.
+"""Tests for the run guards, chiefly the supervisor's evaluation-only condition.
 
 A binding condition that is only enforced by good intentions is not enforced, so the guard
 that keeps Pictor-PPE out of training is tested like any other piece of risky logic.
@@ -22,7 +22,7 @@ def test_a_clean_training_config_passes():
 
 
 def test_declaring_the_pictor_root_is_allowed():
-    """`base.yaml` declares the root so the audit + eval paths can find it — that is legal."""
+    """`base.yaml` declares the root so the audit + eval paths can find it; that is legal."""
     config = {
         "data": "configs/data/sh17.yaml",
         "datasets": {

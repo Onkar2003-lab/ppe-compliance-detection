@@ -85,7 +85,7 @@ def test_released_split_lists_match_the_manifest_ids():
     S7 releases the six image lists so a reader can check our splits rather than take them on
     trust. That only means something if the lists cannot drift from the manifest that names
     them, so the IDs are recomputed here from the committed files. Editing a list without
-    regenerating the manifest fails this test — which is the point.
+    regenerating the manifest fails this test, which is the point.
     """
     splits = Path("configs/splits")
     manifest = json.loads((splits / "split-manifest.json").read_text(encoding="utf-8"))

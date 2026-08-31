@@ -1,22 +1,22 @@
-"""X01 / S1.1 — SH17 + CHV label-file audit (descriptive; no training, no GPU).
+"""X01 / S1.1: SH17 + CHV label-file audit (descriptive; no training, no GPU).
 
 Answers the three questions S1.1 owes the build plan:
-  1. **A1** — do SH17 and CHV really share {helmet, vest, person} at the *label-file*
+  1. **A1**: do SH17 and CHV really share {helmet, vest, person} at the *label-file*
      level (not just in the papers)?
-  2. **Violation route** — how does SH17 encode non-compliance? It ships no explicit
+  2. **Violation route**: how does SH17 encode non-compliance? It ships no explicit
      ``no-helmet``/``no-vest`` class, so the audit reports the full class list and the
      per-class counts that decide "SH17 worn-state proxy vs adopt the E5 set".
-  3. **Data integrity** — split coverage, image/label parity, malformed lines, bbox
-     coordinates outside [0, 1] — the asserts every later training run depends on.
+  3. **Data integrity**: split coverage, image/label parity, malformed lines, bbox
+     coordinates outside [0, 1], the asserts every later training run depends on.
 
 Layout is **discovered per dataset, never assumed** (the two roots differ):
 
-*SH17* — ``images/`` + ``labels/`` (YOLO txt) + ``voc_labels/`` (Pascal-VOC xml) +
+*SH17*: ``images/`` + ``labels/`` (YOLO txt) + ``voc_labels/`` (Pascal-VOC xml) +
 ``meta-data/`` (Pexels provenance json) + ``train_files.txt`` / ``val_files.txt``.
 It has **no names file**, so class ids are named by geometry-matching each YOLO row to
 its VOC object (:func:`derive_names_from_voc`).
 
-*CHV* — ``images/`` + ``annotations/`` (YOLO txt + a ``README.md`` naming the classes) +
+*CHV*: ``images/`` + ``annotations/`` (YOLO txt + a ``README.md`` naming the classes) +
 ``data split/`` (``train.txt`` / ``valid.txt`` / ``test.txt`` listing image paths).
 
 Directory recursion is deliberately avoided: ``SH17_dataset/meta-data/Documents`` holds
@@ -166,7 +166,7 @@ def derive_names_from_voc(
             full 8,099; kept configurable so the whole set can be checked).
 
     Returns:
-        ``(names, votes, n_matched)`` — the winning name per class id, the full vote
+        ``(names, votes, n_matched)``: the winning name per class id, the full vote
         tally per id (so purity/conflicts are inspectable), and the number of files
         actually matched.
     """
@@ -214,7 +214,7 @@ def suggest_core_mapping(name: str) -> str:
         return "no-vest" if negated else "vest"
     if any(k in low for k in ("person", "worker", "people")):
         return "person"
-    return "— (extra / out of scope)"
+    return "- (extra / out of scope)"
 
 
 # ------------------------------------------------------------------------ splits
@@ -246,7 +246,7 @@ def audit_sh17(root: Path) -> list[str]:
     images, labels, voc = root / "images", root / "labels", root / "voc_labels"
     for required in (images, labels, voc):
         if not required.is_dir():
-            raise FileNotFoundError(f"SH17 layout unexpected — missing {required}")
+            raise FileNotFoundError(f"SH17 layout unexpected: missing {required}")
 
     label_files = sorted(labels.glob("*.txt"))
     image_stems = {p.stem for p in images.iterdir() if p.suffix.lower() in IMG_EXTS}
@@ -262,7 +262,7 @@ def audit_sh17(root: Path) -> list[str]:
     val = split_stems(root / "val_files.txt")
 
     out = [
-        "# X01 / S1.1 — SH17 audit",
+        "# X01 / S1.1: SH17 audit",
         "",
         f"- root: `{root}`",
         (
@@ -297,8 +297,8 @@ def audit_sh17(root: Path) -> list[str]:
         "|---|---|---|",
         f"| train_files.txt | {len(train)} | {len(train - image_stems)} not in images/ |",
         f"| val_files.txt | {len(val)} | {len(val - image_stems)} not in images/ |",
-        "| **test** | **0 — not shipped** | must be built + frozen (S1.4) |",
-        f"| unassigned images | {len(image_stems - train - val)} | — |",
+        "| **test** | **0 (not shipped)** | must be built + frozen (S1.4) |",
+        f"| unassigned images | {len(image_stems - train - val)} | - |",
         f"| train∩val overlap | {len(train & val)} | must be 0 |",
         "",
         "## Classes (id → name, instances)",
@@ -317,13 +317,13 @@ def audit_sh17(root: Path) -> list[str]:
         )
     out += [
         "",
-        "## Violation route — evidence",
+        "## Violation route: evidence",
         "",
         (
             "SH17 has no explicit `no-helmet` / `no-vest` class; non-compliance must be "
             "inferred (head box without an overlapping helmet; person without vest) or "
             "sourced elsewhere (E5 set). The class table above is the evidence for that "
-            "decision — see the S1.4 entry in the build plan."
+            "decision; see the S1.4 entry in the build plan."
         ),
         "",
     ]
@@ -336,7 +336,7 @@ def audit_chv(root: Path) -> list[str]:
     images, annotations, splits = inner / "images", inner / "annotations", inner / "data split"
     for required in (images, annotations):
         if not required.is_dir():
-            raise FileNotFoundError(f"CHV layout unexpected — missing {required}")
+            raise FileNotFoundError(f"CHV layout unexpected: missing {required}")
 
     label_files = sorted(annotations.glob("*.txt"))
     image_stems = {p.stem for p in images.iterdir() if p.suffix.lower() in IMG_EXTS}
@@ -348,7 +348,7 @@ def audit_chv(root: Path) -> list[str]:
     names = names_from_readme(readme) if readme.exists() else {}
 
     out = [
-        "# X01 / S1.1 — CHV audit",
+        "# X01 / S1.1: CHV audit",
         "",
         f"- root: `{inner}`" + ("  _(nested inside the download folder)_" if inner != root else ""),
         f"- images: **{len(image_stems)}** · YOLO labels: **{len(label_stems)}**",
@@ -393,7 +393,7 @@ def audit_chv(root: Path) -> list[str]:
         covered = set().union(*seen.values()) if seen else set()
         out += [
             f"| **cross-split overlap** | {overlaps} | must be 0 |",
-            f"| images in no split | {len(image_stems - covered)} | — |",
+            f"| images in no split | {len(image_stems - covered)} | - |",
             "",
         ]
 

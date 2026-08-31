@@ -21,7 +21,7 @@ def _force_utf8_console() -> None:
     The Windows console defaults to cp1252, which cannot encode the characters this project
     legitimately uses in reports and log lines (``±`` in "mean ± 95 % CI", em dashes, ``⚠``).
     Without this, a *completed* pass dies on its final ``print`` with ``UnicodeEncodeError``
-    and returns a non-zero exit code — which is how `src/eda.py` came to exit 1 after writing
+    and returns a non-zero exit code, which is how `src/eda.py` came to exit 1 after writing
     every one of its artefacts successfully. Failing on the report, after the work is done, is
     the worst place to fail: it makes success look like failure to any calling script.
     """

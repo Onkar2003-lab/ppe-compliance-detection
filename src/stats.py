@@ -1,4 +1,4 @@
-"""Seed aggregation and significance testing — the graduation gate (S5).
+"""Seed aggregation and significance testing: the graduation gate (S5).
 
 Every number in the dissertation passes through here. A per-run score is raw material; it
 becomes a *result* only once it is aggregated across seeds with an interval and tested. That
@@ -16,7 +16,7 @@ What is implemented, and why each was chosen:
   and accelerated because a plain percentile interval is visibly wrong for small, skewed
   samples. Du et al. (2025) is the precedent for using it at three seeds.
 * **Paired permutation / sign-flip test** for pairwise comparisons. Exact at this sample
-  size rather than asymptotic, and paired because the models share seeds and datasets — an
+  size rather than asymptotic, and paired because the models share seeds and datasets; an
   unpaired test would throw away the pairing that gives the comparison what little power it
   has.
 * **Friedman + Nemenyi** across all three architectures (Demšar 2006), the standard
@@ -25,7 +25,7 @@ What is implemented, and why each was chosen:
 ⚠️ **Power is the honest limitation, and it is reported rather than hidden.** Three seeds per
 cell is the cited floor, not a comfortable sample. A paired sign-flip test on n=3 pairs has a
 minimum attainable two-sided p of 0.25, so **it cannot return significance at n=3 however
-large the effect is** — the pairing is pooled across both directions to reach n=6 where the
+large the effect is**: the pairing is pooled across both directions to reach n=6 where the
 comparison allows it, and every test reports its own minimum attainable p so a null result is
 never mistaken for evidence of equivalence. This is exactly the ledger's expectation: seed
 noise is the same order as the between-model difference, so "no significant difference" is
@@ -90,7 +90,7 @@ class Interval:
 def bca_interval(values: list[float], alpha: float = ALPHA, draws: int = BOOTSTRAP) -> Interval:
     """95 % bias-corrected and accelerated bootstrap CI for the mean.
 
-    Falls back to the percentile interval when the acceleration term is undefined — which
+    Falls back to the percentile interval when the acceleration term is undefined, which
     happens when every jackknife replicate is identical, i.e. the sample has no variance.
     Reporting *which* method produced an interval matters: a silently-degraded BCa is a
     misdescribed statistic.
@@ -172,7 +172,7 @@ def paired_permutation(a: list[float], b: list[float]) -> dict:
 def friedman_nemenyi(by_model: dict[str, list[float]]) -> dict:
     """Friedman across architectures, with Nemenyi post-hoc and the critical difference.
 
-    Blocks are (seed, direction) pairs — the conditions every model was measured under.
+    Blocks are (seed, direction) pairs: the conditions every model was measured under.
     Requires at least three models and two blocks; below that the test is not defined and
     saying so is better than emitting a number.
     """
@@ -319,7 +319,7 @@ def build_report(results: dict, out: Path) -> Path:
     (out / "X05-stats.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     lines = [
-        "# X05 — seed aggregation + significance (the graduation gate)",
+        "# X05: seed aggregation + significance (the graduation gate)",
         "",
         "Mean +/- 95 % BCa bootstrap CI over seeds, with paired sign-flip tests and",
         "Friedman/Nemenyi across architectures. **CI-first:** the interval is the claim; the",
@@ -361,7 +361,7 @@ def build_report(results: dict, out: Path) -> Path:
         ]
         for label, test in result["pairwise_permutation"].items():
             if "error" in test:
-                lines.append(f"| {label} | — | — | — | {test['error']} |")
+                lines.append(f"| {label} | - | - | - | {test['error']} |")
                 continue
             lines.append(
                 f"| {label} | {test['mean_difference']:+.4f} | {test['p_value']:.4f} | "
@@ -376,7 +376,7 @@ def build_report(results: dict, out: Path) -> Path:
             verdict = "significant" if friedman["significant_at_05"] else "not significant"
             headline = (
                 f"**Friedman:** chi2 = {friedman['statistic']:.4f}, "
-                f"p = {friedman['p_value']:.4f}, {friedman['blocks']} blocks — "
+                f"p = {friedman['p_value']:.4f}, {friedman['blocks']} blocks, "
                 f"{verdict} at 0.05."
             )
             lines += [

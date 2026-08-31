@@ -1,4 +1,4 @@
-"""X01 / S1.2 — exploratory data analysis + SH17↔CHV domain-shift comparison.
+"""X01 / S1.2: exploratory data analysis + SH17↔CHV domain-shift comparison.
 
 Produces the figures and summary tables the Methodology and Implementation chapters need,
 and the direct evidence for *why* a cross-dataset transfer gap should be expected (C7:
@@ -6,11 +6,11 @@ domain shift dominates label mismatch).
 
 Three passes:
 
-1. **Label pass** (fast, no pixels) — per-class instance counts, instances per image,
+1. **Label pass** (fast, no pixels): per-class instance counts, instances per image,
    bbox scale + aspect ratio, class co-occurrence.
-2. **Image pass** (decodes pixels at 1/8 scale) — resolution spread, brightness and
+2. **Image pass** (decodes pixels at 1/8 scale): resolution spread, brightness and
    per-channel colour statistics, and a **dHash** fingerprint per image.
-3. **Overlap pass** — nearest dHash between every CHV image and every SH17 image, so the
+3. **Overlap pass**: nearest dHash between every CHV image and every SH17 image, so the
    "zero-shot" cross-dataset claim rests on pixels, not just on provenance metadata.
 
 Box scale is reported two ways: at **native resolution** (what the annotation describes)
@@ -56,13 +56,13 @@ TRAIN_IMGSZ = 640
 COCO_SMALL, COCO_MEDIUM = 32**2, 96**2
 
 # Palette: categorical slots 1 and 2 of the project's validated chart palette.
-# Verified with the six computable checks against a white (print) surface —
+# Verified with the six computable checks against a white (print) surface:
 # adjacent CVD ΔE 24.7 (protan), normal-vision ΔE 33.6, both clear of the gates.
 # Do not substitute ad-hoc colours: identity is fixed per dataset across every figure.
 SH17_COLOUR, CHV_COLOUR = "#2a78d6", "#eb6834"
 INK, INK_SECONDARY, MUTED = "#0b0b0b", "#52514e", "#898781"
 GRID, AXIS = "#e1e0d9", "#c3c2b7"
-# Single-hue sequential ramp (blue, light→dark) — never a rainbow for magnitude.
+# Single-hue sequential ramp (blue, light→dark), never a rainbow for magnitude.
 BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 # The classes that carry the dissertation's story; everything else is context.
 CORE_CLASSES = {"person", "helmet", "safety-vest", "vest", "head"}
@@ -245,7 +245,7 @@ def nearest_hash_distances(
     out: list[tuple[str, int]] = []
     for stem, value in query.items():
         xor = np.bitwise_xor(ref, np.uint64(value))
-        # popcount via byte view — no np.bitwise_count on older numpy
+        # popcount via byte view; no np.bitwise_count on older numpy
         bits = np.unpackbits(xor.view(np.uint8).reshape(-1, 8), axis=1).sum(axis=1)
         out.append((stem, int(bits.min())))
     return out
@@ -302,7 +302,7 @@ def fig_class_balance(dataset: Dataset, stats: LabelStats, out: Path, colour: st
         height=0.72,
     )
     ax.set_xlabel("instances")
-    ax.set_title(f"{dataset.name} — class balance ({total:,} instances)", loc="left")
+    ax.set_title(f"{dataset.name}: class balance ({total:,} instances)", loc="left")
     for y, (value, core) in enumerate(zip(values[::-1], is_core[::-1])):
         if core:  # selective direct labels: the classes the argument rests on
             ax.text(
@@ -323,7 +323,7 @@ def fig_domain_shift(
 ) -> str:
     """The headline figure: where the two domains actually differ.
 
-    Distributions are drawn as **step outlines, not translucent fills** — overlapping
+    Distributions are drawn as **step outlines, not translucent fills**: overlapping
     alpha fills produce a third colour in the overlap region that belongs to neither
     series, which is exactly where these two datasets need to be compared.
     """
@@ -451,7 +451,7 @@ def fig_cooccurrence(dataset: Dataset, stats: LabelStats, out: Path, top: int = 
     labels = [dataset.names.get(c, str(c)) for c in classes]
     ax.set_xticks(range(len(classes)), labels, rotation=45, ha="right", fontsize=8)
     ax.set_yticks(range(len(classes)), labels, fontsize=8)
-    ax.set_title(f"{dataset.name} — class co-occurrence", loc="left")
+    ax.set_title(f"{dataset.name}: class co-occurrence", loc="left")
     ax.grid(visible=False)
     bar = fig.colorbar(image, ax=ax, shrink=0.85)
     bar.set_label("images containing both classes", fontsize=8, color=INK_SECONDARY)
@@ -464,7 +464,7 @@ def fig_cooccurrence(dataset: Dataset, stats: LabelStats, out: Path, top: int = 
 
 def describe(values: list[float]) -> str:
     if not values:
-        return "—"
+        return "-"
     array = np.array(values, dtype=float)
     return (
         f"{array.mean():.1f} ± {array.std():.1f} "
@@ -492,7 +492,7 @@ def build_report(
     very_close = sum(1 for _, d in overlap if d <= 5)
 
     lines = [
-        "# X01 / S1.2 — EDA + SH17↔CHV domain shift",
+        "# X01 / S1.2: EDA + SH17↔CHV domain shift",
         "",
         "## Domain-shift summary (the transfer-gap evidence)",
         "",
@@ -532,7 +532,7 @@ def build_report(
         f"- CHV images fingerprinted: **{len(ci.hashes):,}** · SH17 reference set: **{len(si.hashes):,}**",
         f"- exact hash matches (distance 0): **{identical}**",
         f"- near-duplicates (distance ≤ 5 of 64 bits): **{very_close}**",
-        "- closest pairs: " + (", ".join(f"`{s}` (d={d})" for s, d in near) if near else "—"),
+        "- closest pairs: " + (", ".join(f"`{s}` (d={d})" for s, d in near) if near else "-"),
         "",
         "_Interpretation: a 64-bit dHash distance of 0–5 indicates the same or a trivially_",
         "_re-encoded image. Anything above ~10 is a different photograph._",
@@ -594,7 +594,7 @@ def load_cache(out: Path) -> dict[str, tuple[LabelStats, ImageStats]] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("cache unreadable (%s) — recomputing", exc)
+        logger.warning("cache unreadable (%s), recomputing", exc)
         return None
 
     blocks: dict[str, tuple[LabelStats, ImageStats]] = {}
@@ -645,9 +645,9 @@ def main() -> int:
     else:
         logger.info("label pass")
         sl, cl = label_pass(sh17), label_pass(chv)
-        logger.info("image pass — SH17 (%d files)", len(sl.stems))
+        logger.info("image pass: SH17 (%d files)", len(sl.stems))
         si = image_pass(sh17, sl.stems, args.sample)
-        logger.info("image pass — CHV (%d files)", len(cl.stems))
+        logger.info("image pass: CHV (%d files)", len(cl.stems))
         ci = image_pass(chv, cl.stems, args.sample)
         save_cache(out, {"sh17": (sl, si), "chv": (cl, ci)})
 

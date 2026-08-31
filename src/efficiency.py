@@ -2,7 +2,7 @@
 
 The deployment-readiness framework treats speed and size as a first-class axis because a
 detector that cannot keep up with a camera cannot monitor a site, however accurate it is.
-**This is a proxy, measured on a laptop RTX 4070 and an Ultra 9 185H — never a claim about
+**This is a proxy, measured on a laptop RTX 4070 and an Ultra 9 185H, never a claim about
 edge hardware.** No embedded device was used, and the write-up must say so (Locked-Context
 §4); what these numbers support is a *relative* comparison between the three architectures
 under identical conditions, plus a sanity check against the demo's 2 fps floor (C2).
@@ -10,10 +10,10 @@ under identical conditions, plus a sanity check against the demo's 2 fps floor (
 Two different kinds of quantity live here, and conflating them would misrepresent the
 uncertainty:
 
-* **Architecture constants** — parameters, GFLOPs, file size. Identical for every seed of a
+* **Architecture constants**: parameters, GFLOPs, file size. Identical for every seed of a
   family by construction, because seeds change weight *values*, not shape. They are measured
   once per architecture and verified identical across seeds rather than assumed.
-* **Measured timings** — latency and FPS. These vary between repeats because of thermal and
+* **Measured timings**: latency and FPS. These vary between repeats because of thermal and
   clock behaviour, not because of anything about the model. So their spread is *measurement*
   noise, and it must never be reported as if it were the seed variance that the accuracy axis
   reports. The two are kept in separate fields for exactly that reason.
@@ -89,7 +89,7 @@ def sample_images(dataset: str, count: int) -> list[Path]:
 
 
 def model_constants(weights: Path) -> dict:
-    """Parameters, GFLOPs and on-disk size — properties of the architecture, not the seed."""
+    """Parameters, GFLOPs and on-disk size: properties of the architecture, not the seed."""
     from ultralytics import YOLO
 
     model = YOLO(str(weights))
@@ -174,7 +174,7 @@ def build_report(records: dict, out: Path) -> Path:
         "(pre-process + inference + post-process), warm-up discarded, models interleaved."
     )
     lines = [
-        "# X05 — efficiency axis (proxy; NOT edge hardware)",
+        "# X05: efficiency axis (proxy; NOT edge hardware)",
         "",
         preamble,
         "",
@@ -253,7 +253,7 @@ def main() -> int:
     images = sample_images(args.dataset, args.images)
     logger.info("%d runs, %d frames from %s test", len(weights_by_run), len(images), args.dataset)
 
-    # One representative run per architecture is enough for the constants — and checking the
+    # One representative run per architecture is enough for the constants, and checking the
     # rest match is how "identical across seeds" stays a verified claim rather than an
     # assumption.
     constants: dict[str, dict] = {}

@@ -1,4 +1,4 @@
-# ByteTrack thresholds for the S2 walking skeleton ONLY — not for results.
+# ByteTrack thresholds for the S2 walking skeleton ONLY, not for results.
 #
 # The smoke model trains for 3 epochs on 200 images, so its detections score below 0.1 and
 # ByteTrack's default gates (track_high_thresh 0.25) confirm no tracks at all. That would leave

@@ -1,16 +1,16 @@
-"""The S5 figure set — six figures, one visual system (fills ⚑ M2).
+"""The S5 figure set: six figures, one visual system (fills ⚑ M2).
 
 Two rubric criteria pay for these directly: *presentation* (10 %) and *confidence in
 findings* (10 %). A confidence interval **drawn** is an argument a reader can check at a
 glance; the same numbers in a table are an assertion they have to take on trust. So the
-forest plot and the CD diagram are not decoration — they are how the statistics are claimed.
+forest plot and the CD diagram are not decoration; they are how the statistics are claimed.
 
 **The encoding choice carries the argument.** Colour is reserved for **dataset identity**
 (SH17 / CHV, the project's locked categorical slots 1–2), and **architecture is encoded by
 position or marker shape, never by hue**. That is deliberate: the finding is that the dataset
 governs the score and the architecture barely moves it, so the figures should make the
 dataset split the visually loud dimension and the model split the quiet one. It also means
-the whole set runs on the two validated colours — no third hue had to be invented, and no
+the whole set runs on the two validated colours; no third hue had to be invented, and no
 figure cycles a palette.
 
 Everything else follows the project's locked chart contract (`00-Key-Facts` -> "Chart
@@ -67,7 +67,7 @@ DEFAULT_OUT = RUNS / "X05-figures"
 
 DATASET_COLOUR = {"sh17": SH17_COLOUR, "chv": CHV_COLOUR}
 DATASET_LABEL = {"sh17": "SH17", "chv": "CHV"}
-# Architecture is encoded by shape, never by hue — see the module docstring.
+# Architecture is encoded by shape, never by hue; see the module docstring.
 ARCH_MARKER = {"y8n": "o", "y11n": "s", "y26n": "^"}
 ARCH_LABEL = {"y8n": "YOLOv8n", "y11n": "YOLO11n", "y26n": "YOLO26n"}
 ARCH_ORDER = ["y8n", "y11n", "y26n"]
@@ -90,7 +90,7 @@ def accuracy_rows() -> list[dict]:
 def fig_transfer_grid(rows: list[dict], out: Path) -> str:
     """The headline finding in one image: rows train, columns test, one panel per model.
 
-    A heatmap rather than a table because the pattern *is* the point — the two columns
+    A heatmap rather than a table because the pattern *is* the point: the two columns
     differ far more than the three panels do, which is the dataset-over-model argument made
     visible before a single number is read.
     """
@@ -124,7 +124,7 @@ def fig_transfer_grid(rows: list[dict], out: Path) -> str:
     axes[0].set_ylabel("trained on")
     fig.colorbar(image, ax=axes, shrink=0.82, label="mAP@0.5 (test split)")
     fig.suptitle(
-        "Cross-dataset transfer grid — the dataset moves the score, the architecture does not",
+        "Cross-dataset transfer grid: the dataset moves the score, the architecture does not",
         fontsize=10,
         color=INK,
     )
@@ -135,7 +135,7 @@ def fig_transfer_grid(rows: list[dict], out: Path) -> str:
 
 
 def fig_forest(stats: dict, out: Path) -> str:
-    """Per-model means with 95 % BCa intervals — overlapping bars do the arguing.
+    """Per-model means with 95 % BCa intervals: overlapping bars do the arguing.
 
     Grouped by dataset because pooling the two would produce a bimodal mean that describes
     the pooling rather than the model (the stats module says so explicitly).
@@ -207,7 +207,7 @@ def _holm(pvals: list[float]) -> list[float]:
     The five omnibus Friedman tests are one family of hypotheses (does the architecture
     move *any* axis?), so their p-values are corrected for multiple comparisons before a
     single axis is called significant. Without this, running five tests inflates the chance
-    that one crosses 0.05 by luck alone — which is exactly what happens here to the in-domain
+    that one crosses 0.05 by luck alone, which is exactly what happens here to the in-domain
     axis (raw 0.0302, adjusted 0.151). See Results Table 6.3.
     """
     m = len(pvals)
@@ -257,7 +257,7 @@ def fig_cd_diagram(stats: dict, out: Path) -> str:
             ax.text(tick, 0.16, f"{tick:g}", ha="center", fontsize=7, color=MUTED)
 
         # Labels are staggered downward whenever two mean ranks sit close enough for their
-        # text to collide — tied ranks would otherwise print exactly on top of each other,
+        # text to collide; tied ranks would otherwise print exactly on top of each other,
         # which is how the first draft rendered "YOLOv8n" and "YOLO11n" as one smudge.
         collision_width = (high - low) * 0.22
         # One step must exceed the text height, or a "stagger" still overprints: at 8 pt in
@@ -322,7 +322,7 @@ def fig_cd_diagram(stats: dict, out: Path) -> str:
 
         verdict = "separated" if corrected_sig else "no difference detected"
         ax.set_title(
-            f"{label}  —  Friedman p = {praw:.4f} → Holm p = {padj:.3f} ({verdict})",
+            f"{label}:  Friedman p = {praw:.4f} → Holm p = {padj:.3f} ({verdict})",
             fontsize=9,
             loc="left",
             color=INK,
@@ -344,7 +344,7 @@ def fig_efficiency_accuracy(rows: list[dict], efficiency: dict, out: Path) -> st
     """The deployment trade-off, and the surprise in it (F29).
 
     Speed is a property of the architecture, accuracy a property of the pairing, so each
-    architecture appears twice — once per training set — joined by a hairline to make the
+    architecture appears twice, once per training set, joined by a hairline to make the
     vertical dataset gap read as one object rather than six loose points.
     """
     fps: dict[str, float] = {}
@@ -427,7 +427,7 @@ def fig_efficiency_accuracy(rows: list[dict], efficiency: dict, out: Path) -> st
 
 
 def fig_convergence(out: Path) -> str:
-    """Validation curves behind the stopping rule — ⚑ M2.
+    """Validation curves behind the stopping rule (⚑ M2).
 
     The supervisor's approval of an epoch cap was made **conditional** on documenting
     convergence clearly, so this figure discharges a commitment rather than illustrating
@@ -530,7 +530,7 @@ def fig_per_class(rows: list[dict], out: Path) -> str:
     ax.set_ylabel("in-domain mAP@0.5 (test split)")
     ax.set_ylim(0, 1.05)
     ax.set_title(
-        "Per-class accuracy — SH17's vest class is where the score collapses",
+        "Per-class accuracy: SH17's vest class is where the score collapses",
         fontsize=10,
         pad=26,
     )

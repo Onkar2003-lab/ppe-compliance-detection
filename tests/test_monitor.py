@@ -1,7 +1,7 @@
 """Tests for the monitor's pure logic and the run entry point's config handling (S2, S6.3–S6.4).
 
-Neither module's *whole* job can be unit-tested — one trains a network, the other drives a
-detector — so what is tested here is the logic that decides what gets written down: which
+Neither module's *whole* job can be unit-tested: one trains a network, the other drives a
+detector. What is tested here is the logic that decides what gets written down: which
 people count as in scope, what the config means, and what reaches the log. The two defects the
 first skeleton run exposed (a run directory that silently moved, and untracked people
 collapsing into a single identity) are kept as regression cases.
@@ -69,7 +69,7 @@ def test_boxes_from_result_reads_classes_and_track_ids():
 
 
 def test_boxes_from_result_survives_an_untracked_frame():
-    """`id` is None until the tracker confirms a track — that must not crash the monitor."""
+    """`id` is None until the tracker confirms a track; that must not crash the monitor."""
     result = FakeResult(FakeBoxes(rows=[(0.5, 0.5, 0.4, 0.8)], classes=[PERSON], ids=None))
     boxes, track_ids = boxes_from_result(result)
     assert len(boxes) == 1
@@ -161,7 +161,7 @@ def test_stills_are_not_tracked_by_default():
     """ByteTrack withholds detections it has not confirmed across consecutive frames.
 
     Over a directory of unrelated photographs that means most boxes vanish for a frame, and a
-    withheld helmet reads as a bare head — the demo's first smoke run flagged two helmeted
+    withheld helmet reads as a bare head; the demo's first smoke run flagged two helmeted
     workers because of it. Stills are therefore detected per image instead.
     """
     assert resolve_source("D:/clips/yard.mp4").stills is False
@@ -256,7 +256,7 @@ def test_dataset_of_recovers_the_dataset_from_its_yaml_path():
 
 
 def test_subset_yaml_truncates_training_and_leaves_validation_whole(tmp_path: Path):
-    """The smoke slice shrinks the train list only — evaluation must stay the real one."""
+    """The smoke slice shrinks the train list only; evaluation must stay the real one."""
     root = tmp_path / "harmonised"
     root.mkdir()
     (root / "train.txt").write_text("\n".join(f"img{i}.jpg" for i in range(10)), encoding="utf-8")
@@ -318,7 +318,7 @@ def test_assess_reports_people_outside_the_zone_without_flagging_them():
 
 
 def test_a_torso_crop_of_the_same_worker_is_suppressed():
-    """One worker drawing two boxes made the tight one read as helmetless — a false alert."""
+    """One worker drawing two boxes made the tight one read as helmetless: a false alert."""
     from src.monitor import suppress_duplicate_people
 
     body = Box(cls=PERSON, xc=0.5, yc=0.5, w=0.30, h=0.80)

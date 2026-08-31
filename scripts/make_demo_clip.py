@@ -2,13 +2,13 @@
 
 The demo's headline speed figure has to come from the path a deployment actually runs:
 decode a frame, detect, track, associate, gate on the zone, time the dwell, draw. Two of
-those — decoding and tracking — do no meaningful work on a directory of unrelated stills, so
+those (decoding and tracking) do no meaningful work on a directory of unrelated stills, so
 measuring there would understate the cost. There is no site video in this project (no labelled
 clip exists, which is why S6.5's alert accuracy is scored on Pictor instead), so the sequence
 is rendered from images we already hold.
 
 This is a **timing fixture, not evidence about accuracy**. Consecutive frames are unrelated
-photographs, so the tracker's matches are meaningless — but its work per frame is real, which
+photographs, so the tracker's matches are meaningless, but its work per frame is real, which
 is the only thing being measured. Any accuracy claim comes from `src.demo_eval`, never here.
 
 Usage::

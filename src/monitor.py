@@ -8,7 +8,7 @@ it is assembled from parts that are already evidenced rather than invented here:
   scored at, so the demo behaves like the numbers in the results chapter;
 * the **tracker** is ByteTrack (C9), which gives each worker an identity so an incident can be
   one incident rather than one row per frame;
-* the **association rule** is imported from :mod:`src.associate` — the same code the violation
+* the **association rule** is imported from :mod:`src.associate`, the same code the violation
   axis is scored with, never a copy, so the demo cannot quietly disagree with the chapter;
 * the **zone** (:mod:`src.zone`) and the **dwell/debounce timer** (:mod:`src.dwell`) are pure
   and separately tested, which is what lets S6.5 evidence them exactly.
@@ -16,7 +16,7 @@ it is assembled from parts that are already evidenced rather than invented here:
 What this module adds is the wiring and the outputs a manager would actually keep: a live
 banner, a timestamped CSV log, and a saved frame at the moment of each violation.
 
-**Input is a generic video source** — a recorded file (the reproducible default), a webcam
+**Input is a generic video source**: a recorded file (the reproducible default), a webcam
 index, an RTSP/HTTP stream, or a directory of stills. One interface covers all four, so the
 demo makes no claim about the camera it is attached to.
 
@@ -111,7 +111,7 @@ class DemoConfig:
     # EEMUA 191), which prescribes on-delay timers and deadband/hysteresis to suppress
     # chattering and fleeting alarms. `dwell_seconds` is the on-delay; `memory_seconds` is the
     # hysteresis on a person's PPE state. The transfer from process alarms to vision alerts is
-    # an analogy and is stated as one — but the failure they prevent is identical, and EEMUA
+    # an analogy and is stated as one, but the failure they prevent is identical, and EEMUA
     # 191's manageable rate (under ~6 alarms per operator-hour) gives the defaults a criterion
     # to be measured against rather than asserted.
     dwell_seconds: float = DEFAULT_DWELL_SECONDS
@@ -120,7 +120,7 @@ class DemoConfig:
     out: Path = Path("D:/runs/X06-demo")
     # None lets Ultralytics choose (the GPU when there is one). "cpu" forces the
     # CPU-constrained case, which is the deployment-relevant one for a site box without a
-    # discrete card — the same proxy the efficiency axis reports, never called "edge".
+    # discrete card, the same proxy the efficiency axis reports, never called "edge".
     device: str | None = None
     display: bool = True
     save_snapshots: bool = True
@@ -247,7 +247,7 @@ def newest_frames(capture, limit: int | None = None):
     A recorded file is read frame by frame because every frame is part of the record, and
     skipping one would change the timing the results chapter reports. A camera is the opposite
     case: it pushes frames whether or not anything is ready for them, so when the pipeline runs
-    slower than the sensor delivers — 19.6 fps against 25 on the phone used for S6.8 — the
+    slower than the sensor delivers (19.6 fps against 25 on the phone used for S6.8), the
     surplus accumulates in the decoder's queue and the operator watches a picture that falls
     further behind the site every second. The alert is still correct; it is simply late, and a
     compliance alert that arrives a minute after the worker left the zone is worthless.
@@ -331,7 +331,7 @@ def boxes_from_result(result) -> tuple[list[Box], list[int | None]]:
 def suppress_duplicate_people(boxes: list[Box], overlap: float = DUPLICATE_OVERLAP) -> list[int]:
     """Drop a person box that sits almost entirely inside a larger person box.
 
-    One worker sometimes draws two boxes — a full-body one and a tighter crop of their torso.
+    One worker sometimes draws two boxes: a full-body one and a tighter crop of their torso.
     Class-wise NMS does not remove it, because both are confident and their IoU is modest, but
     the consequence is severe here: the tight box excludes the head, so the helmet cannot be
     bound to it and the same worker appears twice, once compliant and once in breach. That is
@@ -339,10 +339,10 @@ def suppress_duplicate_people(boxes: list[Box], overlap: float = DUPLICATE_OVERL
 
     Only the *smaller* box goes, and only when it is at least ``overlap`` contained in the
     larger. Two workers standing close together overlap partially, not almost totally, so they
-    both survive. PPE boxes are never touched — a helmet is *meant* to sit inside a person.
+    both survive. PPE boxes are never touched: a helmet is *meant* to sit inside a person.
 
     Returns:
-        The indices of the boxes to keep, in order — indices rather than boxes so the caller
+        The indices of the boxes to keep, in order; indices rather than boxes so the caller
         can drop the matching track ids without comparing boxes by value.
     """
     people = [(index, box) for index, box in enumerate(boxes) if box.cls == PERSON]
@@ -372,7 +372,7 @@ def missing_for(person: PersonState, required: tuple[int, ...]) -> tuple[int, ..
 
     Deliberately not :attr:`PersonState.violations`: that property answers against the frozen
     requirement the violation axis is scored with, while a zone may require less (a helmet-only
-    area) or the same. The association itself is untouched — only what counts as required.
+    area) or the same. The association itself is untouched; only what counts as required.
     """
     return tuple(cls for cls in required if not person.wears(cls))
 
@@ -404,7 +404,7 @@ def assess(
     Returns the per-person view (what gets drawn), the mapping the dwell timer consumes, and a
     count of violating people the tracker could not give an identity to. Those last are
     reported rather than folded in: without an id there is nothing to debounce against, and
-    treating them all as one person would collapse a whole site into a single incident — the
+    treating them all as one person would collapse a whole site into a single incident; the
     defect the S2 skeleton exposed.
 
     When a ``memory`` is supplied, a tracked person's missing set is the *remembered* one, so a
@@ -454,7 +454,7 @@ def violations_in_zone(
 
 @dataclass
 class Violation:
-    """One logged incident — the row a site manager keeps."""
+    """One logged incident: the row a site manager keeps."""
 
     timestamp: str
     frame: int
@@ -536,7 +536,7 @@ def draw_overlay(
 
     **Three colours, three meanings, and the third one matters.** Red is a person in the zone
     missing required PPE. Green is a person in the zone wearing it. **Grey is a person outside
-    the zone — not judged at all**, which is a different statement from "compliant" and used to
+    the zone, not judged at all**, which is a different statement from "compliant" and used to
     be drawn green, so a bare-headed worker on the far side of the site read as a pass.
 
     Text is sized from the frame, not fixed: a 0.5-scale label is legible on 720p and invisible
@@ -643,7 +643,7 @@ def draw_legend(canvas, scale: float, thick: int, zone: Zone | None) -> None:
     height = canvas.shape[0]
     # "not detected", not "missing": the system knows a vest was not found and bound to a person,
     # which is not the same as knowing there is no vest. A partly occluded one reads the same way,
-    # and the key is where that distinction belongs — the box labels stay short.
+    # and the key is where that distinction belongs; the box labels stay short.
     entries = [
         (VIOLATION_COLOUR, "in zone, required PPE not detected"),
         (COMPLIANT_COLOUR, "in zone, compliant"),
@@ -686,7 +686,7 @@ def draw_legend(canvas, scale: float, thick: int, zone: Zone | None) -> None:
 
 @dataclass
 class Summary:
-    """What one demo run measured — the input to S6.5 and to Methodology 4.9."""
+    """What one demo run measured: the input to S6.5 and to Methodology 4.9."""
 
     frames: int = 0
     people_detections: int = 0
@@ -697,8 +697,8 @@ class Summary:
     def stats(self) -> dict:
         """Latency summary over the frames after warm-up.
 
-        The first frames pay for CUDA context creation and kernel selection — 88 ms against a
-        17 ms median in the first smoke run — so they are discarded exactly as the efficiency
+        The first frames pay for CUDA context creation and kernel selection (88 ms against a
+        17 ms median in the first smoke run), so they are discarded exactly as the efficiency
         axis discards its warm-up, and for the same reason: they measure starting the program,
         not running it. Median leads, so one stalled frame does not set the figure.
         """
@@ -736,8 +736,8 @@ class FrameResult:
 def iterate(config: DemoConfig, summary: Summary | None = None):
     """Run the monitor and yield each processed frame.
 
-    The loop lives here so that everything driving the demo — the command line, the dashboard,
-    a future notebook — runs the *same* code. A second copy of this loop is exactly how a
+    The loop lives here so that everything driving the demo (the command line, the dashboard,
+    a future notebook) runs the *same* code. A second copy of this loop is exactly how a
     dashboard ends up quietly disagreeing with the numbers the chapter reports.
 
     Args:
@@ -753,7 +753,7 @@ def iterate(config: DemoConfig, summary: Summary | None = None):
     source = resolve_source(config.source)
     zone = load_zone(config.zone) if config.zone else None
     if zone is None:
-        logger.warning("no zone configured — every person in frame is treated as in scope")
+        logger.warning("no zone configured; every person in frame is treated as in scope")
 
     fps = source_fps(source, config.fps)
     config.out.mkdir(parents=True, exist_ok=True)
@@ -769,7 +769,7 @@ def iterate(config: DemoConfig, summary: Summary | None = None):
     if not tracking:
         # A tracker over unrelated stills is worse than no tracker: ByteTrack only returns
         # detections it has confirmed across consecutive frames, so on a directory of separate
-        # images it silently withholds most boxes for a frame — and a withheld helmet reads as
+        # images it silently withholds most boxes for a frame, and a withheld helmet reads as
         # a bare head. Each image is therefore scored on its own, which also makes dwell
         # meaningless, since there is no elapsed time between two unrelated photographs.
         logger.info("stills source: detecting per image, no tracking and no dwell")
@@ -835,8 +835,8 @@ def iterate(config: DemoConfig, summary: Summary | None = None):
                 alert.dwell,
             )
         summary.alerts += len(alerts)
-        # Timed here so the figure covers everything a deployment pays for — detection,
-        # tracking, association, zone, dwell and drawing — not the detector alone.
+        # Timed here so the figure covers everything a deployment pays for: detection,
+        # tracking, association, zone, dwell and drawing, not the detector alone.
         latency = (time.perf_counter() - began) * 1000
         summary.latencies_ms.append(latency)
 
@@ -872,7 +872,7 @@ def run(config: DemoConfig) -> tuple[list[Violation], Summary]:
 
     if summary.untracked_violations:
         logger.warning(
-            "%d violating people had no track id — the tracker could not confirm them, so they "
+            "%d violating people had no track id; the tracker could not confirm them, so they "
             "are counted but not alerted on (there is no identity to debounce against)",
             summary.untracked_violations,
         )
@@ -927,7 +927,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.config.exists():
-        logger.error("no config at %s — copy configs/demo.yaml and edit it", args.config)
+        logger.error("no config at %s; copy configs/demo.yaml and edit it", args.config)
         return 1
     config = DemoConfig.from_yaml(args.config)
     for name, value in (
@@ -947,7 +947,7 @@ def main() -> int:
         logger.error("weights not found: %s", config.weights)
         return 1
     if config.zone and not Path(config.zone).exists():
-        logger.error("zone not found: %s — draw one with `python -m src.zone`", config.zone)
+        logger.error("zone not found: %s; draw one with `python -m src.zone`", config.zone)
         return 1
 
     violations, summary = run(config)

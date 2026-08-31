@@ -3,7 +3,7 @@
 Two of the four deployment-readiness axes come from here: **accuracy** (how good is the
 model on data from its own dataset) and **cross-dataset generalisation** (what survives when
 it meets the other dataset). The second is the study's contribution, so both are produced by
-one pass over the same weights — a model's in-domain and transfer scores must never come
+one pass over the same weights; a model's in-domain and transfer scores must never come
 from different evaluation settings.
 
 **Why this is a separate module from `src.run`, rather than a flag on it.** Training runs
@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 
 DEFAULT_RUNS = Path("D:/runs")
 DEFAULT_OUT = Path("D:/runs/X05-accuracy")
-SPLIT = "test"  # the whole point of this module — see the docstring
+SPLIT = "test"  # the whole point of this module; see the docstring
 CLASSES = ("person", "helmet", "vest")
 
 
@@ -61,7 +61,7 @@ def frozen_config(run_dir: Path, configs: Path) -> dict:
 
     candidate = configs / f"{run_dir.name}.yaml"
     if candidate.is_file():
-        logger.warning("%s: no summary.json — falling back to %s", run_dir.name, candidate)
+        logger.warning("%s: no summary.json, falling back to %s", run_dir.name, candidate)
         config = yaml.safe_load(candidate.read_text(encoding="utf-8"))
         return {
             "run_id": run_dir.name,
@@ -145,7 +145,7 @@ def build_report(records: list[dict], out: Path) -> Path:
     (out / "X05-accuracy-per-run.json").write_text(json.dumps(records, indent=2), encoding="utf-8")
 
     lines = [
-        "# X05 — accuracy + cross-dataset axes (frozen TEST splits)",
+        "# X05: accuracy + cross-dataset axes (frozen TEST splits)",
         "",
         "Per-run numbers, scored on the held-out test partitions that no training run has",
         "read. **Not results yet:** nothing here is a finding until seeds are aggregated with",
@@ -164,7 +164,7 @@ def build_report(records: list[dict], out: Path) -> Path:
 
     lines += [
         "",
-        "## Per-class mAP50, in-domain (vest support is thin — F1)",
+        "## Per-class mAP50, in-domain (vest support is thin; F1)",
         "",
         "| run | person | helmet | vest |",
         "|---|---|---|---|",

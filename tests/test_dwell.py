@@ -1,9 +1,9 @@
-"""S6.2 — dwell and debounce on synthetic tracks, where the right answer is known exactly.
+"""S6.2 dwell and debounce on synthetic tracks, where the right answer is known exactly.
 
 Every case here is a scripted sequence of frames: a worker stands in the zone without a
 helmet, complies, leaves, flickers out of detection, comes back. Because the module takes
 timestamps and states rather than reading a clock or a camera, these sequences pin the
-behaviour completely — which is why S6.5 evidences the alerting layer by this file instead of
+behaviour completely, which is why S6.5 evidences the alerting layer by this file instead of
 by a hand-labelled clip.
 """
 

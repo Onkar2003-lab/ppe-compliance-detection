@@ -1,7 +1,7 @@
-"""S6.2 — dwell and debounce: turning per-frame non-compliance into one alert per incident (O6).
+"""S6.2 dwell and debounce: turning per-frame non-compliance into one alert per incident (O6).
 
 The detector answers a question every frame; a site manager needs an answer per *incident*.
-The S2 skeleton already made that point the hard way — a monitor that logs whenever a person
+The S2 skeleton already made that point the hard way: a monitor that logs whenever a person
 is seen without a helmet produced thousands of rows for one worker walking through a yard. This
 module is the layer that fixes it, and it is deliberately pure: it takes timestamps and
 per-track compliance states in, and gives alerts out, with no detector, tracker or frame
@@ -15,14 +15,14 @@ seconds suppresses the person who walks past the edge of the area on their way s
 Default zero, so the demo's out-of-the-box behaviour is the one that is easiest to check.
 
 **Debounce.** Once an incident has fired, it does not fire again for that person until it has
-*ended* — they put the helmet on, or they leave the zone. Re-entering starts a fresh incident.
+*ended*: they put the helmet on, or they leave the zone. Re-entering starts a fresh incident.
 
 **Missed frames do not end an incident.** Detection is intermittent: F27 measured that the
 weak link in this pipeline is finding the person at all, so a worker will drop out for a frame
 or two while still standing exactly where they were. Requiring an unbroken run of detections
 would let a flickering track accumulate no dwell and alert on nobody. An incident therefore
 survives a gap of up to ``grace_seconds``; beyond that the person is treated as gone and the
-timer resets. The gap is bridged, never invented — the alert still reports the dwell that
+timer resets. The gap is bridged, never invented; the alert still reports the dwell that
 elapsed, and a track that never comes back never fires.
 
 **Time is supplied, never read.** For a recorded file the caller passes ``frame_index / fps``,
@@ -60,7 +60,7 @@ DEFAULT_GRACE_SECONDS = 2.0
 
 @dataclass(frozen=True)
 class Alert:
-    """One fired incident — the unit that reaches the screen, the log and the snapshot."""
+    """One fired incident: the unit that reaches the screen, the log and the snapshot."""
 
     track_id: int
     zone: str
@@ -84,19 +84,19 @@ class PPEMemory:
     """Short-term memory of what each tracked person was last seen wearing.
 
     A detector answers independently every frame, so a helmet that is occluded by a beam, or
-    simply missed once, reads as a bare head — and the same worker flickers between compliant
+    simply missed once, reads as a bare head, and the same worker flickers between compliant
     and violating several times a second. That is unusable in front of a supervisor, and it
     is not what the footage shows: **PPE does not come on and off at frame rate.**
 
     So a bound item is believed for :attr:`seconds` after it was last seen on that person.
     The trade is deliberate and worth stating: it suppresses flicker at the cost of taking up
-    to a second to notice PPE genuinely being removed — acceptable when the dwell threshold
+    to a second to notice PPE genuinely being removed, acceptable when the dwell threshold
     already imposes a delay before anyone is alerted, and when the measured failure of this
     pipeline is over-flagging, not under-flagging.
 
     **This is a property of watching video, and it applies only to tracked people.** The
     violation axis and the demo evaluation score unrelated stills, where there is no "last
-    frame" to remember and no identity to remember it against, so they are unaffected — the
+    frame" to remember and no identity to remember it against, so they are unaffected; the
     demo's agreement with the reported numbers is untouched.
 
     Set ``seconds`` to 0 to disable it and judge every frame on its own.
@@ -156,7 +156,7 @@ class DwellTracker:
             now: Timestamp of this frame, in seconds.
             violating: ``{track_id: missing PPE class ids}`` for every tracked person who is
                 **in the zone and non-compliant right now**. A person who is compliant, outside
-                the zone, or undetected this frame is simply absent from the mapping — the
+                the zone, or undetected this frame is simply absent from the mapping; the
                 caller does not have to distinguish those, because all three mean "not an
                 ongoing violation to count".
 
@@ -190,7 +190,7 @@ class DwellTracker:
 
         # Close incidents nobody has reported for longer than the grace window. The same rule
         # covers compliance, leaving the zone and a dropped detection, because the caller
-        # cannot always tell them apart — a worker who is not reported as violating simply
+        # cannot always tell them apart; a worker who is not reported as violating simply
         # stops accumulating, and their incident ends once the gap outlasts the window. A
         # caller that *does* know the state changed calls `resolve` and ends it at once.
         for track_id, incident in list(self._open.items()):
@@ -210,5 +210,5 @@ class DwellTracker:
 
     @property
     def open_incidents(self) -> int:
-        """How many incidents are currently being timed — the banner's "watching" count."""
+        """How many incidents are currently being timed: the banner's "watching" count."""
         return len(self._open)

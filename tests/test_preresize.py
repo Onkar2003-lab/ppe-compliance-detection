@@ -2,7 +2,7 @@
 
 The whole approach rests on one claim: scaling the pixels does **not** change the labels or
 the frozen splits, because YOLO coordinates are normalised. That claim is load-bearing for
-every downstream run, so it is tested by construction here rather than assumed — a synthetic
+every downstream run, so it is tested by construction here rather than assumed; a synthetic
 dataset is built, mirrored, and checked byte-for-byte.
 """
 
@@ -40,7 +40,7 @@ def test_image_within_target_is_left_alone():
 
 
 def test_never_upscales_a_small_image():
-    """A below-target image must not be blown up — that would invent pixels."""
+    """A below-target image must not be blown up; that would invent pixels."""
     assert target_size(100, 80) is None
 
 
@@ -104,7 +104,7 @@ def test_labels_are_byte_identical_after_the_resize(harmonised: Path, tmp_path: 
 
 
 def test_split_membership_survives_the_mirror(harmonised: Path, tmp_path: Path):
-    """Frozen splits are the reproducibility contract — the mirror repoints, never reshuffles."""
+    """Frozen splits are the reproducibility contract: the mirror repoints, never reshuffles."""
     out = tmp_path / "out" / "toy"
     build("toy", harmonised, out, workers=2)
 
@@ -128,7 +128,7 @@ def test_resized_images_are_within_the_target(harmonised: Path, tmp_path: Path):
 
 
 def test_small_image_is_carried_across_untouched(harmonised: Path, tmp_path: Path):
-    """No re-encode without cause — an in-target image must be bit-identical, not recompressed."""
+    """No re-encode without cause: an in-target image must be bit-identical, not recompressed."""
     out = tmp_path / "out" / "toy"
     build("toy", harmonised, out, workers=2)
 
